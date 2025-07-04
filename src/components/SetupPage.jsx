@@ -8,17 +8,19 @@ function SetupPage({ numPeople, setNumPeople, names, setNames, onNext }) {
 
     const handleNumPeopleChange = (e) => {
         const value = e.target.value;
+        const numPeopleInt = parseInt(value, 10) || 0;
+
         setNumPeople(value);
 
         // Clear names if reducing number of people
-        if (value < names.length) {
-            setNames(names.slice(0, parseInt(value) || 0));
+        if (numPeopleInt < names.length) {
+            setNames(names.slice(0, numPeopleInt));
         }
 
         // Add empty names if increasing number of people
-        if (value > names.length) {
+        if (numPeopleInt > names.length) {
             const newNames = [...names];
-            for (let i = names.length; i < parseInt(value); i++) {
+            for (let i = names.length; i < numPeopleInt; i++) {
                 newNames.push('');
             }
             setNames(newNames);
@@ -33,8 +35,9 @@ function SetupPage({ numPeople, setNumPeople, names, setNames, onNext }) {
 
     const validateForm = () => {
         const newErrors = {};
+        const numPeopleInt = parseInt(numPeople, 10) || 0;
 
-        if (!numPeople || parseInt(numPeople) < 2) {
+        if (!numPeople || numPeopleInt < 2) {
             newErrors.numPeople = 'Please enter at least 2 people';
         }
 
@@ -64,7 +67,19 @@ function SetupPage({ numPeople, setNumPeople, names, setNames, onNext }) {
     };
 
     const canProceed = () => {
-        if (!numPeople || parseInt(numPeople) < 2) return false;
+        const numPeopleInt = parseInt(numPeople, 10) || 0;
+
+        // Debug logging
+        console.log('canProceed check:', {
+            numPeople,
+            numPeopleInt,
+            namesLength: names.length,
+            names,
+            hasEmptyNames: names.some(name => name.trim() === ''),
+            hasDuplicates: names.filter((name, index) => names.indexOf(name) !== index && name.trim() !== '').length > 0
+        });
+
+        if (!numPeople || numPeopleInt < 2) return false;
         if (names.length === 0) return false;
         if (names.some(name => name.trim() === '')) return false;
         if (names.filter((name, index) => names.indexOf(name) !== index && name.trim() !== '').length > 0) return false;
