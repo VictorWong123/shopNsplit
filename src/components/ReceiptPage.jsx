@@ -35,11 +35,13 @@ function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], persona
 
         // Add everyone split portion
         const everyoneTotal = calculateEveryoneTotal();
-        total += everyoneTotal / names.length;
+        if (names.length > 0) {
+            total += everyoneTotal / names.length;
+        }
 
         // Add split group portions
         splitGroupsItems.forEach(group => {
-            if (group.participants.includes(personName)) {
+            if (group.participants.includes(personName) && group.participants.length > 0) {
                 const groupTotal = group.items.reduce((sum, item) => {
                     return sum + (parseFloat(item.price) || 0);
                 }, 0);
@@ -112,6 +114,14 @@ function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], persona
         window.print();
     };
 
+    // Helper to filter out empty/partial items
+    const filterValidItems = (items) => {
+        return items.filter(item => {
+            const price = parseFloat(item.price || '');
+            return (item.name && item.name.trim() !== '') || (!isNaN(price) && price > 0);
+        });
+    };
+
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <PageHeader
@@ -161,25 +171,31 @@ function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], persona
                                     </div>
                                     <div className="text-right">
                                         <div className="text-lg font-bold text-blue-700">${everyoneTotal.toFixed(2)}</div>
-                                        <div className="text-sm text-gray-500">${(everyoneTotal / names.length).toFixed(2)} each</div>
+                                        <div className="text-sm text-gray-500">
+                                            {names.length > 0 ? `$${(everyoneTotal / names.length).toFixed(2)} each` : '$0.00 each'}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                             <div className="p-6">
                                 <div className="space-y-3">
-                                    {everyoneItems.map((item, idx) => (
+                                    {filterValidItems(everyoneItems).map((item, idx) => (
                                         <div key={idx} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
                                             <div className="flex-1">
                                                 <div className="font-medium text-gray-900">{item.name}</div>
-                                                <div className="text-sm text-gray-500">
-                                                    Split among: {names.join(', ')}
-                                                </div>
+                                                {item.name && (
+                                                    <div className="text-sm text-gray-500">
+                                                        Split among: {names.join(', ')}
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="text-right">
-                                                <div className="font-semibold text-gray-900">${parseFloat(item.price).toFixed(2)}</div>
-                                                <div className="text-sm text-blue-600">
-                                                    ${(parseFloat(item.price) / names.length).toFixed(2)} each
-                                                </div>
+                                                <div className="font-semibold text-gray-900">${parseFloat(item.price || 0).toFixed(2)}</div>
+                                                {names.length > 0 && (parseFloat(item.price || 0) > 0 || (item.name && parseFloat(item.price || 0) === 0)) && (
+                                                    <div className="text-sm text-blue-600">
+                                                        {`$${(parseFloat(item.price || 0) / names.length).toFixed(2)} each`}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
@@ -212,8 +228,8 @@ function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], persona
                                 {splitGroupsItems.map((group, groupIdx) => {
                                     const colorScheme = groupColors[groupIdx % groupColors.length];
                                     const groupTotal = group.items.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
-                                    const perPerson = groupTotal / group.participants.length;
-
+                                    const perPerson = group.participants.length > 0 ? groupTotal / group.participants.length : 0;
+                                    const validItems = filterValidItems(group.items);
                                     return (
                                         <div key={groupIdx} className={`border-2 rounded-lg ${colorScheme.border} overflow-hidden`}>
                                             <div className={`${colorScheme.bg} px-4 py-3 border-b ${colorScheme.border}`}>
@@ -241,19 +257,23 @@ function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], persona
                                             </div>
                                             <div className="p-4">
                                                 <div className="space-y-2">
-                                                    {group.items.map((item, itemIdx) => (
+                                                    {validItems.map((item, itemIdx) => (
                                                         <div key={itemIdx} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
                                                             <div className="flex-1">
                                                                 <div className="font-medium text-gray-900">{item.name}</div>
-                                                                <div className="text-sm text-gray-500">
-                                                                    Split among: {group.participants.join(', ')}
-                                                                </div>
+                                                                {item.name && (
+                                                                    <div className="text-sm text-gray-500">
+                                                                        Split among: {group.participants.join(', ')}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                             <div className="text-right">
-                                                                <div className="font-semibold text-gray-900">${parseFloat(item.price).toFixed(2)}</div>
-                                                                <div className="text-sm text-purple-600">
-                                                                    ${(parseFloat(item.price) / group.participants.length).toFixed(2)} each
-                                                                </div>
+                                                                <div className="font-semibold text-gray-900">${parseFloat(item.price || 0).toFixed(2)}</div>
+                                                                {group.participants.length > 0 && (parseFloat(item.price || 0) > 0 || (item.name && parseFloat(item.price || 0) === 0)) && (
+                                                                    <div className="text-sm text-purple-600">
+                                                                        {`$${(parseFloat(item.price || 0) / group.participants.length).toFixed(2)} each`}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     ))}
@@ -290,7 +310,7 @@ function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], persona
                                 {personalItems.map((personalItem, idx) => {
                                     const colorScheme = personalItemColors[idx % personalItemColors.length];
                                     const personalTotal = personalItem.items.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
-
+                                    const validItems = filterValidItems(personalItem.items);
                                     return (
                                         <div key={idx} className={`border-2 rounded-lg ${colorScheme.border} overflow-hidden`}>
                                             <div className={`${colorScheme.bg} px-4 py-3 border-b ${colorScheme.border}`}>
@@ -312,19 +332,23 @@ function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], persona
                                             </div>
                                             <div className="p-4">
                                                 <div className="space-y-2">
-                                                    {personalItem.items.map((item, itemIdx) => (
+                                                    {validItems.map((item, itemIdx) => (
                                                         <div key={itemIdx} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
                                                             <div className="flex-1">
                                                                 <div className="font-medium text-gray-900">{item.name}</div>
-                                                                <div className="text-sm text-gray-500">
-                                                                    Paid by: {personalItem.owner}
-                                                                </div>
+                                                                {item.name && (
+                                                                    <div className="text-sm text-gray-500">
+                                                                        Paid by: {personalItem.owner}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                             <div className="text-right">
-                                                                <div className="font-semibold text-gray-900">${parseFloat(item.price).toFixed(2)}</div>
-                                                                <div className="text-sm text-teal-600">
-                                                                    Full amount
-                                                                </div>
+                                                                <div className="font-semibold text-gray-900">${parseFloat(item.price || 0).toFixed(2)}</div>
+                                                                {(parseFloat(item.price || 0) > 0 || (item.name && parseFloat(item.price || 0) === 0)) && (
+                                                                    <div className="text-sm text-teal-600">
+                                                                        Full amount
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     ))}
@@ -353,7 +377,9 @@ function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], persona
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="text-gray-600">Per person:</span>
-                                                <span className="font-semibold text-blue-600">${(everyoneTotal / names.length).toFixed(2)}</span>
+                                                <span className="font-semibold text-blue-600">
+                                                    {names.length > 0 ? `$${(everyoneTotal / names.length).toFixed(2)}` : '$0.00'}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>

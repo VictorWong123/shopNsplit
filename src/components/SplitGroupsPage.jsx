@@ -7,8 +7,7 @@ import SummaryCard from './SummaryCard';
 import PrimaryButton from './PrimaryButton';
 import CardHeader from './CardHeader';
 
-function SplitGroupsPage({ names, onBack, everyoneItems = [], onNext }) {
-    const [groups, setGroups] = useState([]); // {participants: [], items: []}
+function SplitGroupsPage({ names, onBack, everyoneItems = [], groups, setGroups, onNext }) {
     const [selecting, setSelecting] = useState(false);
     const [selectedPeople, setSelectedPeople] = useState([]);
     const [errorMessage, setErrorMessage] = useState('');

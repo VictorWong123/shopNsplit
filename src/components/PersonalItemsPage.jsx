@@ -7,8 +7,7 @@ import SummaryCard from './SummaryCard';
 import PrimaryButton from './PrimaryButton';
 import CardHeader from './CardHeader';
 
-function PersonalItemsPage({ names, onBack, everyoneItems = [], splitGroupsItems = [], onNext }) {
-    const [personalItems, setPersonalItems] = useState([]); // {owner: '', items: []}
+function PersonalItemsPage({ names, onBack, everyoneItems = [], splitGroupsItems = [], personalItems, setPersonalItems, onNext }) {
     const [selecting, setSelecting] = useState(false);
     const [selectedOwner, setSelectedOwner] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
@@ -302,8 +301,8 @@ function PersonalItemsPage({ names, onBack, everyoneItems = [], splitGroupsItems
                                                 type="button"
                                                 onClick={() => setSelectedOwner(person)}
                                                 className={`px-4 py-3 rounded-lg border font-medium transition-all duration-200 ${selectedOwner === person
-                                                        ? 'bg-teal-600 text-white border-teal-700 shadow-sm'
-                                                        : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
+                                                    ? 'bg-teal-600 text-white border-teal-700 shadow-sm'
+                                                    : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
                                                     }`}
                                             >
                                                 {person}

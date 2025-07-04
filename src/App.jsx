@@ -13,6 +13,18 @@ function App() {
     const [personalItems, setPersonalItems] = useState([]);
     const [currentPage, setCurrentPage] = useState('setup'); // 'setup', 'grocery', 'splitgroups', 'personal', 'receipt'
 
+    // Track which pages have been visited
+    const getVisitedPages = () => {
+        const visited = ['setup'];
+        if (names.length > 0) visited.push('grocery');
+        if (splitGroupsItems.length > 0 || everyoneItems.some(item => item.name.trim() !== '')) visited.push('splitgroups');
+        if (personalItems.length > 0 || splitGroupsItems.length > 0 || everyoneItems.some(item => item.name.trim() !== '')) visited.push('personal');
+        if (personalItems.length > 0) visited.push('receipt');
+        return visited;
+    };
+
+    const visitedPages = getVisitedPages();
+
     const handleNextPage = () => {
         setCurrentPage('grocery');
     };
@@ -43,6 +55,12 @@ function App() {
         setCurrentPage('personal');
     };
 
+    const handleHeaderNavigation = (page) => {
+        if (visitedPages.includes(page)) {
+            setCurrentPage(page);
+        }
+    };
+
     const renderHeader = () => (
         <header className="bg-white border-b border-gray-100 shadow-sm">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -60,35 +78,55 @@ function App() {
                     </div>
                     {currentPage !== 'setup' && (
                         <div className="flex items-center space-x-2 text-sm text-gray-500">
-                            <div className="flex items-center space-x-1">
+                            <div
+                                className={`flex items-center space-x-1 cursor-pointer transition-colors ${visitedPages.includes('grocery') ? 'hover:text-teal-600' : 'cursor-not-allowed opacity-50'
+                                    }`}
+                                onClick={() => handleHeaderNavigation('grocery')}
+                            >
                                 <div className={`w-2 h-2 rounded-full ${currentPage === 'grocery' ? 'bg-teal-500' : 'bg-gray-300'}`}></div>
                                 <span className={currentPage === 'grocery' ? 'text-teal-600 font-medium' : ''}>Setup</span>
                             </div>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
-                            <div className="flex items-center space-x-1">
+                            <div
+                                className={`flex items-center space-x-1 cursor-pointer transition-colors ${visitedPages.includes('grocery') ? 'hover:text-teal-600' : 'cursor-not-allowed opacity-50'
+                                    }`}
+                                onClick={() => handleHeaderNavigation('grocery')}
+                            >
                                 <div className={`w-2 h-2 rounded-full ${currentPage === 'grocery' ? 'bg-teal-500' : 'bg-gray-300'}`}></div>
                                 <span className={currentPage === 'grocery' ? 'text-teal-600 font-medium' : ''}>Items</span>
                             </div>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
-                            <div className="flex items-center space-x-1">
+                            <div
+                                className={`flex items-center space-x-1 cursor-pointer transition-colors ${visitedPages.includes('splitgroups') ? 'hover:text-teal-600' : 'cursor-not-allowed opacity-50'
+                                    }`}
+                                onClick={() => handleHeaderNavigation('splitgroups')}
+                            >
                                 <div className={`w-2 h-2 rounded-full ${currentPage === 'splitgroups' ? 'bg-teal-500' : 'bg-gray-300'}`}></div>
                                 <span className={currentPage === 'splitgroups' ? 'text-teal-600 font-medium' : ''}>Groups</span>
                             </div>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
-                            <div className="flex items-center space-x-1">
+                            <div
+                                className={`flex items-center space-x-1 cursor-pointer transition-colors ${visitedPages.includes('personal') ? 'hover:text-teal-600' : 'cursor-not-allowed opacity-50'
+                                    }`}
+                                onClick={() => handleHeaderNavigation('personal')}
+                            >
                                 <div className={`w-2 h-2 rounded-full ${currentPage === 'personal' ? 'bg-teal-500' : 'bg-gray-300'}`}></div>
                                 <span className={currentPage === 'personal' ? 'text-teal-600 font-medium' : ''}>Personal</span>
                             </div>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
-                            <div className="flex items-center space-x-1">
+                            <div
+                                className={`flex items-center space-x-1 cursor-pointer transition-colors ${visitedPages.includes('receipt') ? 'hover:text-teal-600' : 'cursor-not-allowed opacity-50'
+                                    }`}
+                                onClick={() => handleHeaderNavigation('receipt')}
+                            >
                                 <div className={`w-2 h-2 rounded-full ${currentPage === 'receipt' ? 'bg-teal-500' : 'bg-gray-300'}`}></div>
                                 <span className={currentPage === 'receipt' ? 'text-teal-600 font-medium' : ''}>Receipt</span>
                             </div>
@@ -118,6 +156,8 @@ function App() {
                         onBack={handleBackToSplitGroups}
                         everyoneItems={everyoneItems}
                         splitGroupsItems={splitGroupsItems}
+                        personalItems={personalItems}
+                        setPersonalItems={setPersonalItems}
                         onNext={handleNextToReceipt}
                     />
                 )}
@@ -126,6 +166,8 @@ function App() {
                         names={names}
                         onBack={() => setCurrentPage('grocery')}
                         everyoneItems={everyoneItems}
+                        groups={splitGroupsItems}
+                        setGroups={setSplitGroupsItems}
                         onNext={handleNextToPersonalItems}
                     />
                 )}
