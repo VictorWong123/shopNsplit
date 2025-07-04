@@ -3,13 +3,15 @@ import SetupPage from './components/SetupPage';
 import GroceryPage from './components/GroceryPage';
 import SplitGroupsPage from './components/SplitGroupsPage';
 import PersonalItemsPage from './components/PersonalItemsPage';
+import ReceiptPage from './components/ReceiptPage';
 
 function App() {
     const [numPeople, setNumPeople] = useState('');
     const [names, setNames] = useState([]);
     const [everyoneItems, setEveryoneItems] = useState([{ name: '', price: '' }]);
     const [splitGroupsItems, setSplitGroupsItems] = useState([]);
-    const [currentPage, setCurrentPage] = useState('setup'); // 'setup', 'grocery', 'splitgroups', 'personal'
+    const [personalItems, setPersonalItems] = useState([]);
+    const [currentPage, setCurrentPage] = useState('setup'); // 'setup', 'grocery', 'splitgroups', 'personal', 'receipt'
 
     const handleNextPage = () => {
         setCurrentPage('grocery');
@@ -28,8 +30,17 @@ function App() {
         setCurrentPage('personal');
     };
 
+    const handleNextToReceipt = (personal) => {
+        setPersonalItems(personal);
+        setCurrentPage('receipt');
+    };
+
     const handleBackToSplitGroups = () => {
         setCurrentPage('splitgroups');
+    };
+
+    const handleBackToPersonalItems = () => {
+        setCurrentPage('personal');
     };
 
     const renderHeader = () => (
@@ -74,6 +85,13 @@ function App() {
                                 <div className={`w-2 h-2 rounded-full ${currentPage === 'personal' ? 'bg-teal-500' : 'bg-gray-300'}`}></div>
                                 <span className={currentPage === 'personal' ? 'text-teal-600 font-medium' : ''}>Personal</span>
                             </div>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                            <div className="flex items-center space-x-1">
+                                <div className={`w-2 h-2 rounded-full ${currentPage === 'receipt' ? 'bg-teal-500' : 'bg-gray-300'}`}></div>
+                                <span className={currentPage === 'receipt' ? 'text-teal-600 font-medium' : ''}>Receipt</span>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -85,12 +103,22 @@ function App() {
         <div className="min-h-screen bg-gray-50">
             {renderHeader()}
             <main className="py-8">
+                {currentPage === 'receipt' && (
+                    <ReceiptPage
+                        names={names}
+                        onBack={handleBackToPersonalItems}
+                        everyoneItems={everyoneItems}
+                        splitGroupsItems={splitGroupsItems}
+                        personalItems={personalItems}
+                    />
+                )}
                 {currentPage === 'personal' && (
                     <PersonalItemsPage
                         names={names}
                         onBack={handleBackToSplitGroups}
                         everyoneItems={everyoneItems}
                         splitGroupsItems={splitGroupsItems}
+                        onNext={handleNextToReceipt}
                     />
                 )}
                 {currentPage === 'splitgroups' && (

@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GroceryItemForm from './GroceryItemForm';
-import FormValidation from './FormValidation';
 import ParticipantSelector from './ParticipantSelector';
+import PageHeader from './PageHeader';
+import ValidationMessage from './ValidationMessage';
+import SummaryCard from './SummaryCard';
+import PrimaryButton from './PrimaryButton';
+import CardHeader from './CardHeader';
 
 function SplitGroupsPage({ names, onBack, everyoneItems = [], onNext }) {
     const [groups, setGroups] = useState([]); // {participants: [], items: []}
@@ -24,6 +28,11 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], onNext }) {
         setTempItems([{ name: '', price: '' }]);
         setErrorMessage('');
         setSaveButtonTooltip('');
+    };
+
+    const handleDeleteGroup = (index) => {
+        const newGroups = groups.filter((_, i) => i !== index);
+        setGroups(newGroups);
     };
 
     const isDuplicateGroup = (participants) => {
@@ -73,12 +82,25 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], onNext }) {
         return true;
     };
 
+    const hasUnsavedChanges = () => {
+        // Check if there are any items with data in the temp form
+        return tempItems.some(item => item.name.trim() !== '' || item.price.trim() !== '') || selectedPeople.length > 0;
+    };
+
+    const canProceedToNext = () => {
+        // Can't proceed if there are unsaved changes
+        if (selecting && hasUnsavedChanges()) {
+            return false;
+        }
+        return true;
+    };
+
     // Update tooltip whenever relevant state changes
     useEffect(() => {
         if (selecting) {
             setSaveButtonTooltip(getSaveButtonTooltip());
         }
-    }, [selectedPeople, tempItems, selecting]);
+    }, [selectedPeople, tempItems, selecting, getSaveButtonTooltip]);
 
     const handleSaveGroup = () => {
         // Clear any previous error messages
@@ -120,6 +142,14 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], onNext }) {
         setTempItems([{ name: '', price: '' }]);
         setErrorMessage('');
         setSaveButtonTooltip('');
+    };
+
+    const handleNext = () => {
+        if (!canProceedToNext()) {
+            setErrorMessage('Please save or cancel the current group before proceeding');
+            return;
+        }
+        onNext && onNext(groups);
     };
 
     // Calculate totals
@@ -173,29 +203,37 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], onNext }) {
         { border: 'border-emerald-300', bg: 'bg-emerald-50', badge: 'bg-emerald-100 text-emerald-700' },
     ];
 
+    const addGroupIcon = (
+        <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+        </svg>
+    );
+
+    const summaryIcon = (
+        <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+    );
+
+    const nextIcon = (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+        </svg>
+    );
+
+    const deleteIcon = (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+    );
+
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="mb-8">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                            Split Groups
-                        </h1>
-                        <p className="text-lg text-gray-600">
-                            Create groups for items that only some people will split
-                        </p>
-                    </div>
-                    <button
-                        onClick={onBack}
-                        className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                        <span>Back</span>
-                    </button>
-                </div>
-            </div>
+            <PageHeader
+                title="Split Groups"
+                description="Create groups for items that only some people will split"
+                onBack={onBack}
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Main Content */}
@@ -205,44 +243,33 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], onNext }) {
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
                                 <div className="w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center">
-                                    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                    </svg>
+                                    {addGroupIcon}
                                 </div>
                                 <div>
                                     <h2 className="text-lg font-semibold text-gray-900">Create Split Group</h2>
                                     <p className="text-sm text-gray-500">Add items that only some people will split</p>
                                 </div>
                             </div>
-                            <button
+                            <PrimaryButton
                                 onClick={handleStartGroup}
-                                className="px-6 py-3 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition-all duration-200 shadow-sm hover:shadow-md"
                                 disabled={selecting}
                                 title={selecting ? "Save group before adding new one" : "Add a new split group"}
                             >
                                 {selecting ? 'Creating...' : 'Add Group'}
-                            </button>
+                            </PrimaryButton>
                         </div>
                     </div>
 
                     {/* Error message */}
-                    {errorMessage && (
-                        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                            <div className="flex items-center space-x-2">
-                                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <p className="text-red-700 font-medium">{errorMessage}</p>
-                            </div>
-                        </div>
-                    )}
+                    <ValidationMessage
+                        type="error"
+                        message={errorMessage}
+                    />
 
                     {/* Group Creation Form */}
                     {selecting && (
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                            <div className="px-6 py-6 border-b border-gray-100">
-                                <h3 className="text-lg font-semibold text-gray-900">New Split Group</h3>
-                            </div>
+                            <CardHeader title="New Split Group" />
 
                             <div className="p-6 space-y-6">
                                 {/* Participant Selection */}
@@ -256,14 +283,10 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], onNext }) {
 
                                 {/* Duplicate Group Warning */}
                                 {selectedPeople.length > 0 && isDuplicateGroup(selectedPeople) && (
-                                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                                        <div className="flex items-center space-x-2">
-                                            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                            </svg>
-                                            <p className="text-amber-700 text-sm">This group already exists</p>
-                                        </div>
-                                    </div>
+                                    <ValidationMessage
+                                        type="warning"
+                                        message="This group already exists"
+                                    />
                                 )}
 
                                 {/* Items Form */}
@@ -281,23 +304,20 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], onNext }) {
                                 {/* Action Buttons */}
                                 {selectedPeople.length > 0 && (
                                     <div className="flex gap-4 pt-6 border-t border-gray-100">
-                                        <button
+                                        <PrimaryButton
                                             onClick={handleSaveGroup}
                                             disabled={!canSaveGroup()}
-                                            className={`flex-1 px-6 py-3 font-semibold rounded-lg focus:ring-2 focus:ring-offset-2 transition-all duration-200 ${canSaveGroup()
-                                                ? 'bg-gradient-to-r from-teal-500 to-green-500 text-white hover:from-teal-600 hover:to-green-600 focus:ring-teal-500 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
-                                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                                }`}
+                                            className="flex-1"
                                             title={saveButtonTooltip}
                                         >
                                             Save Group
-                                        </button>
-                                        <button
+                                        </PrimaryButton>
+                                        <PrimaryButton
                                             onClick={handleCancelGroup}
-                                            className="px-6 py-3 bg-gray-300 text-gray-800 font-semibold rounded-lg hover:bg-gray-400 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-all duration-200"
+                                            variant="secondary"
                                         >
                                             Cancel
-                                        </button>
+                                        </PrimaryButton>
                                     </div>
                                 )}
                             </div>
@@ -324,12 +344,21 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], onNext }) {
                                                     Group {idx + 1}
                                                 </h3>
                                             </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                {group.participants.map((participant, pIdx) => (
-                                                    <span key={pIdx} className={`px-3 py-1 rounded-full text-sm font-medium ${colorScheme.badge}`}>
-                                                        {participant}
-                                                    </span>
-                                                ))}
+                                            <div className="flex items-center space-x-3">
+                                                <div className="flex flex-wrap gap-2">
+                                                    {group.participants.map((participant, pIdx) => (
+                                                        <span key={pIdx} className={`px-3 py-1 rounded-full text-sm font-medium ${colorScheme.badge}`}>
+                                                            {participant}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                                <button
+                                                    onClick={() => handleDeleteGroup(idx)}
+                                                    className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                                    title="Delete this group"
+                                                >
+                                                    {deleteIcon}
+                                                </button>
                                             </div>
                                         </div>
                                         <GroceryItemForm
@@ -353,16 +382,7 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], onNext }) {
                 {/* Summary Sidebar */}
                 <div className="lg:col-span-1">
                     <div className="sticky top-8">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <div className="flex items-center space-x-3 mb-6">
-                                <div className="w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center">
-                                    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                    </svg>
-                                </div>
-                                <h3 className="text-lg font-semibold text-gray-900">Summary</h3>
-                            </div>
-
+                        <SummaryCard title="Summary" icon={summaryIcon}>
                             <div className="space-y-4">
                                 <div className="border-b border-gray-100 pb-4">
                                     <h4 className="font-medium text-gray-700 mb-3">Everyone Splits</h4>
@@ -411,15 +431,19 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], onNext }) {
 
                                 {/* Next Button */}
                                 <div className="border-t border-gray-100 pt-4">
-                                    <button
-                                        onClick={() => onNext && onNext(groups)}
-                                        className="w-full px-6 py-3 bg-gradient-to-r from-teal-500 to-green-500 text-white font-semibold rounded-lg hover:from-teal-600 hover:to-green-600 focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                                    <PrimaryButton
+                                        onClick={handleNext}
+                                        disabled={!canProceedToNext()}
+                                        className="w-full"
+                                        showIcon={canProceedToNext()}
+                                        icon={canProceedToNext() ? nextIcon : null}
+                                        title={!canProceedToNext() ? "Please save or cancel the current group before proceeding" : "Continue to Personal Items"}
                                     >
-                                        Next: Personal Items
-                                    </button>
+                                        {canProceedToNext() ? 'Next: Personal Items' : 'Save group to continue'}
+                                    </PrimaryButton>
                                 </div>
                             </div>
-                        </div>
+                        </SummaryCard>
                     </div>
                 </div>
             </div>
