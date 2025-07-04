@@ -14,7 +14,7 @@ app.use(express.json());
 // CORS configuration
 app.use(cors({
     origin: process.env.NODE_ENV === 'production'
-        ? ['https://shopnsplit.vercel.app']
+        ? ['https://shopnsplit.onrender.com', 'https://shopnsplit.vercel.app']
         : 'http://localhost:3000',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -83,10 +83,18 @@ app.get('/api/test', (req, res) => {
     res.json({ message: 'Server is running!' });
 });
 
-// For Vercel deployment
-if (process.env.NODE_ENV !== 'production') {
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Serve static files from React build (for single service deployment)
+if (process.env.NODE_ENV === 'production') {
+    const path = require('path');
+    app.use(express.static(path.join(__dirname, '../build')));
+
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(__dirname, '../build', 'index.html'));
+    });
 }
+
+// Start server (for both development and production)
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 module.exports = app; 
