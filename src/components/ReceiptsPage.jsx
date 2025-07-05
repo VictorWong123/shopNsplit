@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PrimaryButton from './PrimaryButton';
 import PageHeader from './PageHeader';
+import ShareButton from './ShareButton';
 import API_BASE_URL from '../config';
 
 const ReceiptsPage = ({ onBack }) => {
@@ -199,6 +200,10 @@ const ReceiptsPage = ({ onBack }) => {
                         <span>Back to Receipts</span>
                     </button>
                     <div className="flex space-x-2">
+                        <ShareButton
+                            receiptId={selectedReceipt._id}
+                            receiptName={selectedReceipt.name || `Receipt from ${formatDate(selectedReceipt.createdAt)}`}
+                        />
                         <button
                             onClick={() => handleDeleteReceipt(selectedReceipt)}
                             disabled={deletingReceipt === selectedReceipt._id}

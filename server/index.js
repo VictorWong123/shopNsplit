@@ -226,6 +226,17 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/receipts', require('./routes/receipts'));
 console.log('Routes registered after session setup');
 
+// Handle shared receipt URLs (both development and production)
+app.get('/shared/:id', (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+        // In production, serve the React app which will handle the route
+        res.sendFile(path.join(__dirname, '../build', 'index.html'));
+    } else {
+        // In development, redirect to the React dev server
+        res.redirect(`http://localhost:3000/shared/${req.params.id}`);
+    }
+});
+
 // Serve static files from React build (for single service deployment)
 if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.join(__dirname, '../build')));

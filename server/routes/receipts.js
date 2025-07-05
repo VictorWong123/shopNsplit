@@ -62,4 +62,17 @@ router.delete('/:id', ensureAuth, async (req, res) => {
     }
 });
 
+// Get shared receipt (no auth required)
+router.get('/shared/:id', async (req, res) => {
+    try {
+        const receipt = receiptStorage.getReceipt(req.params.id);
+        if (!receipt) {
+            return res.status(404).json({ message: 'Receipt not found.' });
+        }
+        res.json({ receipt });
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to fetch receipt.' });
+    }
+});
+
 module.exports = router; 

@@ -6,6 +6,7 @@ import ValidationMessage from './ValidationMessage';
 import SummaryCard from './SummaryCard';
 import PrimaryButton from './PrimaryButton';
 import CardHeader from './CardHeader';
+import { calculateEveryoneTotal, calculateGroupsTotal, calculatePersonalTotal, calculatePersonTotal } from './PriceCalculator';
 
 function PersonalItemsPage({ names, onBack, everyoneItems = [], splitGroupsItems = [], personalItems, setPersonalItems, onNext }) {
     const [selecting, setSelecting] = useState(false);
@@ -142,65 +143,10 @@ function PersonalItemsPage({ names, onBack, everyoneItems = [], splitGroupsItems
         onNext && onNext(personalItems);
     };
 
-    // Calculate totals
-    const calculateEveryoneTotal = () => {
-        return everyoneItems.reduce((total, item) => {
-            const price = parseFloat(item.price) || 0;
-            return total + price;
-        }, 0);
-    };
-
-    const calculateGroupsTotal = () => {
-        return splitGroupsItems.reduce((total, group) => {
-            return total + group.items.reduce((groupTotal, item) => {
-                const price = parseFloat(item.price) || 0;
-                return groupTotal + price;
-            }, 0);
-        }, 0);
-    };
-
-    const calculatePersonalTotal = () => {
-        return personalItems.reduce((total, personalItem) => {
-            return total + personalItem.items.reduce((itemTotal, item) => {
-                const price = parseFloat(item.price) || 0;
-                return itemTotal + price;
-            }, 0);
-        }, 0);
-    };
-
-    const calculatePersonTotal = (personName) => {
-        let total = 0;
-
-        // Add everyone split portion
-        const everyoneTotal = calculateEveryoneTotal();
-        total += everyoneTotal / names.length;
-
-        // Add split group portions
-        splitGroupsItems.forEach(group => {
-            if (group.participants.includes(personName)) {
-                const groupTotal = group.items.reduce((sum, item) => {
-                    return sum + (parseFloat(item.price) || 0);
-                }, 0);
-                total += groupTotal / group.participants.length;
-            }
-        });
-
-        // Add personal items (person pays for their own items)
-        personalItems.forEach(personalItem => {
-            if (personalItem.owner === personName) {
-                const personalTotal = personalItem.items.reduce((sum, item) => {
-                    return sum + (parseFloat(item.price) || 0);
-                }, 0);
-                total += personalTotal; // Full amount, not split
-            }
-        });
-
-        return total;
-    };
-
-    const everyoneTotal = calculateEveryoneTotal();
-    const groupsTotal = calculateGroupsTotal();
-    const personalTotal = calculatePersonalTotal();
+    // Calculate totals using utility functions
+    const everyoneTotal = calculateEveryoneTotal(everyoneItems);
+    const groupsTotal = calculateGroupsTotal(splitGroupsItems);
+    const personalTotal = calculatePersonalTotal(personalItems);
     const grandTotal = everyoneTotal + groupsTotal + personalTotal;
 
     // Color schemes for different personal items
@@ -468,7 +414,7 @@ function PersonalItemsPage({ names, onBack, everyoneItems = [], splitGroupsItems
                                         {names.map((person) => (
                                             <div key={person} className="flex justify-between">
                                                 <span className="text-gray-600">{person}:</span>
-                                                <span className="font-semibold text-teal-600">${calculatePersonTotal(person).toFixed(2)}</span>
+                                                <span className="font-semibold text-teal-600">${calculatePersonTotal(person, names, everyoneItems, splitGroupsItems, personalItems).toFixed(2)}</span>
                                             </div>
                                         ))}
                                     </div>

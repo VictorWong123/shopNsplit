@@ -6,6 +6,7 @@ import ValidationMessage from './ValidationMessage';
 import SummaryCard from './SummaryCard';
 import PrimaryButton from './PrimaryButton';
 import CardHeader from './CardHeader';
+import { calculateEveryoneTotal, calculateGroupsTotalLegacy, calculatePersonTotalLegacy } from './PriceCalculator';
 
 function SplitGroupsPage({ names, onBack, everyoneItems = [], groups, setGroups, onNext }) {
     const [selecting, setSelecting] = useState(false);
@@ -151,45 +152,9 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], groups, setGroups,
         onNext && onNext(groups);
     };
 
-    // Calculate totals
-    const calculateEveryoneTotal = () => {
-        return everyoneItems.reduce((total, item) => {
-            const price = parseFloat(item.price) || 0;
-            return total + price;
-        }, 0);
-    };
-
-    const calculateGroupsTotal = () => {
-        return groups.reduce((total, group) => {
-            return total + group.items.reduce((groupTotal, item) => {
-                const price = parseFloat(item.price) || 0;
-                return groupTotal + price;
-            }, 0);
-        }, 0);
-    };
-
-    const calculatePersonTotal = (personName) => {
-        let total = 0;
-
-        // Add everyone split portion
-        const everyoneTotal = calculateEveryoneTotal();
-        total += everyoneTotal / names.length;
-
-        // Add split group portions
-        groups.forEach(group => {
-            if (group.participants.includes(personName)) {
-                const groupTotal = group.items.reduce((sum, item) => {
-                    return sum + (parseFloat(item.price) || 0);
-                }, 0);
-                total += groupTotal / group.participants.length;
-            }
-        });
-
-        return total;
-    };
-
-    const everyoneTotal = calculateEveryoneTotal();
-    const groupsTotal = calculateGroupsTotal();
+    // Calculate totals using utility functions
+    const everyoneTotal = calculateEveryoneTotal(everyoneItems);
+    const groupsTotal = calculateGroupsTotalLegacy(groups);
     const grandTotal = everyoneTotal + groupsTotal;
 
     // Color schemes for different groups
@@ -422,7 +387,7 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], groups, setGroups,
                                         {names.map((person) => (
                                             <div key={person} className="flex justify-between">
                                                 <span className="text-gray-600">{person}:</span>
-                                                <span className="font-semibold text-teal-600">${calculatePersonTotal(person).toFixed(2)}</span>
+                                                <span className="font-semibold text-teal-600">${calculatePersonTotalLegacy(person, names, everyoneItems, groups).toFixed(2)}</span>
                                             </div>
                                         ))}
                                     </div>

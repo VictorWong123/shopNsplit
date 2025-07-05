@@ -5,9 +5,12 @@ import SplitGroupsPage from './components/SplitGroupsPage';
 import PersonalItemsPage from './components/PersonalItemsPage';
 import ReceiptPage from './components/ReceiptPage';
 import ReceiptsPage from './components/ReceiptsPage';
+import SharedReceiptPage from './components/SharedReceiptPage';
 import AuthModal from './components/AuthModal';
 import UserMenu from './components/UserMenu';
+import Notification from './components/Notification';
 import API_BASE_URL from './config';
+import { calculateAllTotals } from './components/PriceCalculator';
 
 function App() {
     const [numPeople, setNumPeople] = useState('');
@@ -15,7 +18,8 @@ function App() {
     const [everyoneItems, setEveryoneItems] = useState([{ name: '', price: '' }]);
     const [splitGroupsItems, setSplitGroupsItems] = useState([]);
     const [personalItems, setPersonalItems] = useState([]);
-    const [currentPage, setCurrentPage] = useState('setup'); // 'setup', 'grocery', 'splitgroups', 'personal', 'receipt', 'receipts'
+    const [currentPage, setCurrentPage] = useState('setup'); // 'setup', 'grocery', 'splitgroups', 'personal', 'receipt', 'receipts', 'shared'
+    const [sharedReceiptId, setSharedReceiptId] = useState(null);
 
     // Authentication state
     const [user, setUser] = useState(null);
@@ -23,6 +27,9 @@ function App() {
     const [savingReceipt, setSavingReceipt] = useState(false);
     const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
     const [pendingNavigation, setPendingNavigation] = useState(null);
+
+    // Notification state
+    const [notification, setNotification] = useState(null);
 
     // Track which pages have been visited
     const getVisitedPages = () => {
@@ -38,10 +45,20 @@ function App() {
 
 
 
-    // Check authentication status on app load
+    // Check authentication status on app load and handle shared receipts
     useEffect(() => {
         checkAuthStatus();
+        checkForSharedReceipt();
     }, []);
+
+    const checkForSharedReceipt = () => {
+        const path = window.location.pathname;
+        const sharedMatch = path.match(/^\/shared\/(.+)$/);
+        if (sharedMatch) {
+            setSharedReceiptId(sharedMatch[1]);
+            setCurrentPage('shared');
+        }
+    };
 
     const checkAuthStatus = async () => {
         try {
@@ -82,74 +99,8 @@ function App() {
 
         setSavingReceipt(true);
         try {
-            // Calculate all totals like in ReceiptPage
-            const calculateEveryoneTotal = () => {
-                return everyoneItems.reduce((total, item) => {
-                    const price = parseFloat(item.price) || 0;
-                    return total + price;
-                }, 0);
-            };
-
-            const calculateGroupsTotal = () => {
-                return splitGroupsItems.reduce((total, group) => {
-                    return total + group.items.reduce((groupTotal, item) => {
-                        const price = parseFloat(item.price) || 0;
-                        return groupTotal + price;
-                    }, 0);
-                }, 0);
-            };
-
-            const calculatePersonalTotal = () => {
-                return personalItems.reduce((total, personalItem) => {
-                    return total + personalItem.items.reduce((itemTotal, item) => {
-                        const price = parseFloat(item.price) || 0;
-                        return itemTotal + price;
-                    }, 0);
-                }, 0);
-            };
-
-            const calculatePersonTotal = (personName) => {
-                let total = 0;
-
-                // Add everyone split portion
-                const everyoneTotal = calculateEveryoneTotal();
-                if (names.length > 0) {
-                    total += everyoneTotal / names.length;
-                }
-
-                // Add split group portions
-                splitGroupsItems.forEach(group => {
-                    if (group.participants.includes(personName) && group.participants.length > 0) {
-                        const groupTotal = group.items.reduce((sum, item) => {
-                            return sum + (parseFloat(item.price) || 0);
-                        }, 0);
-                        total += groupTotal / group.participants.length;
-                    }
-                });
-
-                // Add personal items (person pays for their own items)
-                personalItems.forEach(personalItem => {
-                    if (personalItem.owner === personName) {
-                        const personalTotal = personalItem.items.reduce((sum, item) => {
-                            return sum + (parseFloat(item.price) || 0);
-                        }, 0);
-                        total += personalTotal; // Full amount, not split
-                    }
-                });
-
-                return total;
-            };
-
-            const everyoneTotal = calculateEveryoneTotal();
-            const groupsTotal = calculateGroupsTotal();
-            const personalTotal = calculatePersonalTotal();
-            const grandTotal = everyoneTotal + groupsTotal + personalTotal;
-
-            // Calculate per-person totals
-            const personTotals = names.map(name => ({
-                name,
-                total: calculatePersonTotal(name)
-            }));
+            // Calculate all totals using utility functions
+            const { everyoneTotal, groupsTotal, personalTotal, grandTotal, personTotals } = calculateAllTotals(names, everyoneItems, splitGroupsItems, personalItems);
 
             const receiptData = {
                 names,
@@ -187,12 +138,12 @@ function App() {
             });
 
             if (response.ok) {
-                alert('Receipt saved successfully!');
+                setNotification({ message: 'Receipt saved successfully!', type: 'success' });
             } else {
-                alert('Failed to save receipt');
+                setNotification({ message: 'Failed to save receipt', type: 'error' });
             }
         } catch (error) {
-            alert('Error saving receipt');
+            setNotification({ message: 'Error saving receipt', type: 'error' });
         } finally {
             setSavingReceipt(false);
         }
@@ -372,8 +323,11 @@ function App() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {renderHeader()}
+            {currentPage !== 'shared' && renderHeader()}
             <main className="py-8">
+                {currentPage === 'shared' && sharedReceiptId && (
+                    <SharedReceiptPage receiptId={sharedReceiptId} />
+                )}
                 {currentPage === 'receipts' && (
                     <ReceiptsPage onBack={() => setCurrentPage('setup')} />
                 )}
@@ -456,6 +410,15 @@ function App() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Notification */}
+            {notification && (
+                <Notification
+                    message={notification.message}
+                    type={notification.type}
+                    onClose={() => setNotification(null)}
+                />
             )}
         </div>
     );
