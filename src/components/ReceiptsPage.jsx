@@ -82,7 +82,6 @@ const ReceiptsPage = ({ onBack }) => {
     };
 
     const handleDeleteReceipt = (receipt) => {
-        console.log('Delete button clicked for receipt:', receipt._id, receipt.name);
         setReceiptToDelete(receipt);
         setShowDeleteConfirmation(true);
     };

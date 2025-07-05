@@ -69,16 +69,6 @@ function SetupPage({ numPeople, setNumPeople, names, setNames, onNext }) {
     const canProceed = () => {
         const numPeopleInt = parseInt(numPeople, 10) || 0;
 
-        // Debug logging
-        console.log('canProceed check:', {
-            numPeople,
-            numPeopleInt,
-            namesLength: names.length,
-            names,
-            hasEmptyNames: names.some(name => name.trim() === ''),
-            hasDuplicates: names.filter((name, index) => names.indexOf(name) !== index && name.trim() !== '').length > 0
-        });
-
         if (!numPeople || numPeopleInt < 2) return false;
         if (names.length === 0) return false;
         if (names.some(name => name.trim() === '')) return false;

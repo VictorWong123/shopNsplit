@@ -36,10 +36,7 @@ function App() {
 
     const visitedPages = getVisitedPages();
 
-    // Debug logging for current page
-    useEffect(() => {
-        console.log('Current page changed to:', currentPage);
-    }, [currentPage]);
+
 
     // Check authentication status on app load
     useEffect(() => {
@@ -202,7 +199,6 @@ function App() {
     };
 
     const handleNextPage = () => {
-        console.log('handleNextPage called, setting currentPage to grocery');
         setCurrentPage('grocery');
     };
 

@@ -126,7 +126,12 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                 onAuthSuccess(data.user);
                 onClose();
             } else {
-                setMessage(data.message || 'An error occurred');
+                // Show generic error message for security
+                if (mode === 'login' && data.message && data.message.includes('Invalid username or password')) {
+                    setMessage('Incorrect password or username');
+                } else {
+                    setMessage(data.message || 'An error occurred');
+                }
             }
         } catch (error) {
             setMessage('Network error. Please try again.');
