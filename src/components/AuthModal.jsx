@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import ValidationMessage from './ValidationMessage';
 import PrimaryButton from './PrimaryButton';
-import { auth, users } from '../supabaseClient';
-import { supabaseClient } from '../supabaseClient';
+import { auth, users, supabase } from '../supabaseClient';
 
 const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMode }) => {
     const [formData, setFormData] = useState({
@@ -112,7 +111,9 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
 
         try {
             if (isForgotPassword) {
-                const { data, error } = await supabaseClient.resetPassword(formData.email);
+                const { data, error } = await supabase.auth.resetPasswordForEmail(formData.email, {
+                    redirectTo: `${window.location.origin}/reset-password`
+                });
                 if (error) {
                     setMessage(error.message);
                 } else {
