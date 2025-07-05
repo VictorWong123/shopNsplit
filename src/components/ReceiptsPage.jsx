@@ -54,7 +54,7 @@ const ReceiptsPage = ({ onBack }) => {
 
     const handleEditName = (receipt) => {
         setEditingName(receipt.id);
-        setEditName(receipt.name || '');
+        setEditName(receipt.title || '');
     };
 
     const handleSaveName = async (receiptId) => {
@@ -228,12 +228,12 @@ const ReceiptsPage = ({ onBack }) => {
                         <p className="text-gray-500">{formatDate(selectedReceipt.created_at)}</p>
                     </div>
 
-                    {/* Items */}
-                    {selectedReceipt.items && selectedReceipt.items.length > 0 && (
+                    {/* Everyone Items */}
+                    {selectedReceipt.everyone_items && selectedReceipt.everyone_items.length > 0 && (
                         <div className="mb-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-3">Items</h2>
+                            <h2 className="text-lg font-semibold text-gray-900 mb-3">Everyone Splits</h2>
                             <div className="space-y-2">
-                                {selectedReceipt.items
+                                {selectedReceipt.everyone_items
                                     .filter(item => (item.name && item.name.trim() !== '') || (parseFloat(item.price) || 0) > 0)
                                     .map((item, index) => (
                                         <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100">
@@ -246,16 +246,40 @@ const ReceiptsPage = ({ onBack }) => {
                     )}
 
                     {/* Split Groups */}
-                    {selectedReceipt.split_groups && selectedReceipt.split_groups.length > 0 && (
+                    {selectedReceipt.split_groups_items && selectedReceipt.split_groups_items.length > 0 && (
                         <div className="mb-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-3">Split Groups</h2>
-                            {selectedReceipt.split_groups.map((group, groupIndex) => (
+                            {selectedReceipt.split_groups_items.map((group, groupIndex) => (
                                 <div key={groupIndex} className="mb-4 p-4 bg-gray-50 rounded-lg">
                                     <h3 className="font-medium text-gray-800 mb-2">
                                         Split among: {group.participants?.join(', ') || 'Unknown'}
                                     </h3>
                                     <div className="space-y-2">
                                         {group.items
+                                            ?.filter(item => (item.name && item.name.trim() !== '') || (parseFloat(item.price) || 0) > 0)
+                                            .map((item, itemIndex) => (
+                                                <div key={itemIndex} className="flex justify-between items-center py-1">
+                                                    <span className="text-gray-700">{item.name || 'Unnamed Item'}</span>
+                                                    <span className="font-medium">${(parseFloat(item.price) || 0).toFixed(2)}</span>
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Personal Items */}
+                    {selectedReceipt.personal_items && selectedReceipt.personal_items.length > 0 && (
+                        <div className="mb-6">
+                            <h2 className="text-lg font-semibold text-gray-900 mb-3">Personal Items</h2>
+                            {selectedReceipt.personal_items.map((personalItem, personalIndex) => (
+                                <div key={personalIndex} className="mb-4 p-4 bg-gray-50 rounded-lg">
+                                    <h3 className="font-medium text-gray-800 mb-2">
+                                        {personalItem.owner}'s Items
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {personalItem.items
                                             ?.filter(item => (item.name && item.name.trim() !== '') || (parseFloat(item.price) || 0) > 0)
                                             .map((item, itemIndex) => (
                                                 <div key={itemIndex} className="flex justify-between items-center py-1">
@@ -305,7 +329,7 @@ const ReceiptsPage = ({ onBack }) => {
                                 <h3 className="text-lg font-semibold text-gray-900">Delete Receipt</h3>
                             </div>
                             <p className="text-gray-600 mb-6">
-                                Are you sure you want to delete "{receiptToDelete.name || `Receipt from ${formatDate(receiptToDelete.createdAt)}`}"?
+                                Are you sure you want to delete "{receiptToDelete.title || `Receipt from ${formatDate(receiptToDelete.created_at)}`}"?
                                 This action cannot be undone.
                             </p>
                             <div className="flex space-x-3">

@@ -83,20 +83,19 @@ export const receipts = {
         try {
             console.log('Fetching receipts for user:', userId);
 
-            const response = await fetch('/api/receipts', {
-                method: 'GET',
-                credentials: 'include',
-            });
+            const { data, error } = await supabase
+                .from('receipts')
+                .select('*')
+                .eq('owner_id', userId)
+                .order('created_at', { ascending: false });
 
-            const result = await response.json();
-
-            if (!response.ok) {
-                console.error('Error fetching receipts:', result);
-                return { data: [], error: result };
+            if (error) {
+                console.error('Error fetching receipts:', error);
+                return { data: [], error };
             }
 
-            console.log('Receipts fetched successfully:', result);
-            return { data: result.receipts || [], error: null };
+            console.log('Receipts fetched successfully:', data);
+            return { data: data || [], error: null };
         } catch (error) {
             console.error('Exception in getUserReceipts:', error);
             return { data: [], error };
@@ -109,36 +108,59 @@ export const receipts = {
             console.log('Saving receipt for user:', userId);
             console.log('Receipt data:', receiptData);
 
-            // Use the backend API instead of direct Supabase access
-            const response = await fetch('/api/receipts', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    title: receiptData.name || 'Receipt',
-                    totalAmount: receiptData.totals?.grandTotal || 0,
-                    items: receiptData.everyoneItems || [],
-                    participants: receiptData.names || [],
-                    splitGroups: receiptData.splitGroupsItems || []
-                })
+            // Check if receipt already exists (based on content hash)
+            const contentHash = JSON.stringify({
+                names: receiptData.names,
+                everyoneItems: receiptData.everyoneItems,
+                splitGroupsItems: receiptData.splitGroupsItems,
+                personalItems: receiptData.personalItems,
+                totals: receiptData.totals
             });
 
-            const result = await response.json();
+            // Check for existing receipt with same content
+            const { data: existingReceipts, error: checkError } = await supabase
+                .from('receipts')
+                .select('id')
+                .eq('owner_id', userId)
+                .eq('content_hash', contentHash)
+                .limit(1);
 
-            if (!response.ok) {
-                console.error('Error saving receipt:', result);
-                return { error: result };
+            if (checkError) {
+                console.error('Error checking for existing receipt:', checkError);
+                return { error: checkError };
             }
 
-            if (result.message === 'Already saved') {
+            if (existingReceipts && existingReceipts.length > 0) {
                 console.log('Receipt already exists');
                 return { data: null, message: 'Already saved' };
             }
 
-            console.log('Receipt saved successfully:', result);
-            return { data: result.receipt };
+            // Insert new receipt
+            const { data, error } = await supabase
+                .from('receipts')
+                .insert([
+                    {
+                        owner_id: userId,
+                        title: receiptData.name || 'Receipt',
+                        total_amount: receiptData.totals?.grandTotal || 0,
+                        participants: receiptData.names || [],
+                        everyone_items: receiptData.everyoneItems || [],
+                        split_groups_items: receiptData.splitGroupsItems || [],
+                        personal_items: receiptData.personalItems || [],
+                        content_hash: contentHash,
+                        created_at: new Date().toISOString()
+                    }
+                ])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error saving receipt:', error);
+                return { error };
+            }
+
+            console.log('Receipt saved successfully:', data);
+            return { data };
         } catch (error) {
             console.error('Exception in saveReceipt:', error);
             return { error };
@@ -148,18 +170,17 @@ export const receipts = {
     // Get a specific receipt
     getReceipt: async (receiptId) => {
         try {
-            const response = await fetch(`/api/receipts/shared/${receiptId}`, {
-                method: 'GET',
-                credentials: 'include',
-            });
+            const { data, error } = await supabase
+                .from('receipts')
+                .select('*')
+                .eq('id', receiptId)
+                .single();
 
-            const result = await response.json();
-
-            if (!response.ok) {
-                return { data: null, error: result };
+            if (error) {
+                return { data: null, error };
             }
 
-            return { data: result.receipt, error: null };
+            return { data, error: null };
         } catch (error) {
             return { data: null, error };
         }
@@ -168,18 +189,19 @@ export const receipts = {
     // Delete a receipt
     deleteReceipt: async (receiptId, userId) => {
         try {
-            const response = await fetch(`/api/receipts/${receiptId}`, {
-                method: 'DELETE',
-                credentials: 'include',
-            });
+            const { data, error } = await supabase
+                .from('receipts')
+                .delete()
+                .eq('id', receiptId)
+                .eq('owner_id', userId)
+                .select()
+                .single();
 
-            const result = await response.json();
-
-            if (!response.ok) {
-                return { data: null, error: result };
+            if (error) {
+                return { data: null, error };
             }
 
-            return { data: result, error: null };
+            return { data, error: null };
         } catch (error) {
             return { data: null, error };
         }
@@ -188,22 +210,19 @@ export const receipts = {
     // Update receipt title
     updateReceiptName: async (receiptId, title, userId) => {
         try {
-            const response = await fetch(`/api/receipts/${receiptId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                body: JSON.stringify({ title })
-            });
+            const { data, error } = await supabase
+                .from('receipts')
+                .update({ title })
+                .eq('id', receiptId)
+                .eq('owner_id', userId)
+                .select()
+                .single();
 
-            const result = await response.json();
-
-            if (!response.ok) {
-                return { data: null, error: result };
+            if (error) {
+                return { data: null, error };
             }
 
-            return { data: result.receipt, error: null };
+            return { data, error: null };
         } catch (error) {
             return { data: null, error };
         }

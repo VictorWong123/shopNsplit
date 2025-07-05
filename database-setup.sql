@@ -13,22 +13,28 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create receipts table
+-- Drop existing receipts table if it exists to recreate with new schema
+DROP TABLE IF EXISTS receipts CASCADE;
+
+-- Create receipts table with updated schema
 CREATE TABLE IF NOT EXISTS receipts (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    owner_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     title TEXT NOT NULL,
     total_amount DECIMAL(10,2) NOT NULL,
-    items JSONB NOT NULL,
     participants JSONB NOT NULL,
-    split_groups JSONB,
+    everyone_items JSONB NOT NULL,
+    split_groups_items JSONB,
+    personal_items JSONB,
+    content_hash TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_receipts_user_id ON receipts(user_id);
+CREATE INDEX IF NOT EXISTS idx_receipts_owner_id ON receipts(owner_id);
 CREATE INDEX IF NOT EXISTS idx_receipts_created_at ON receipts(created_at);
+CREATE INDEX IF NOT EXISTS idx_receipts_content_hash ON receipts(content_hash);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 
@@ -84,16 +90,16 @@ CREATE POLICY "Users can insert their own profile" ON users
 
 -- RLS Policies for receipts table
 CREATE POLICY "Users can view their own receipts" ON receipts
-    FOR SELECT USING (auth.uid() = user_id);
+    FOR SELECT USING (auth.uid() = owner_id);
 
 CREATE POLICY "Users can insert their own receipts" ON receipts
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
+    FOR INSERT WITH CHECK (auth.uid() = owner_id);
 
 CREATE POLICY "Users can update their own receipts" ON receipts
-    FOR UPDATE USING (auth.uid() = user_id);
+    FOR UPDATE USING (auth.uid() = owner_id);
 
 CREATE POLICY "Users can delete their own receipts" ON receipts
-    FOR DELETE USING (auth.uid() = user_id);
+    FOR DELETE USING (auth.uid() = owner_id);
 
 -- Policy for public access to shared receipts (by ID)
 CREATE POLICY "Public can view shared receipts" ON receipts

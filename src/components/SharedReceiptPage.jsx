@@ -169,7 +169,7 @@ function SharedReceiptPage({ receiptId }) {
                             </div>
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900">
-                                    {receipt.name || 'Shared Receipt'}
+                                    {receipt.title || 'Shared Receipt'}
                                 </h2>
                                 <p className="text-sm text-gray-500">Complete breakdown for {names.length} people</p>
                             </div>
@@ -177,7 +177,7 @@ function SharedReceiptPage({ receiptId }) {
                         <div className="text-right">
                             <div className="text-sm text-gray-500">Shared via link</div>
                             <div className="text-xs text-gray-400">
-                                {new Date(receipt.createdAt).toLocaleDateString()}
+                                {new Date(receipt.created_at).toLocaleDateString()}
                             </div>
                         </div>
                     </div>
