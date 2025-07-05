@@ -33,6 +33,11 @@ app.get('/api/test', (req, res) => {
     res.json({ message: 'Server is running!' });
 });
 
+// Test route for auth
+app.get('/api/auth-test', (req, res) => {
+    res.json({ message: 'Auth route test - working!' });
+});
+
 // --- Mongoose connection cache ---
 let cached = global.mongoose;
 if (!cached) {
@@ -48,7 +53,13 @@ function dbConnect() {
             maxPoolSize: 10,
             serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
-        }).then((mongoose) => mongoose);
+        }).then((mongoose) => {
+            console.log('MongoDB connected successfully');
+            return mongoose;
+        }).catch((error) => {
+            console.error('MongoDB connection failed:', error);
+            throw error;
+        });
     }
     return cached.promise.then((conn) => {
         cached.conn = conn;
@@ -60,16 +71,25 @@ function dbConnect() {
 let mongoStorePromise;
 function getMongoStore() {
     if (!mongoStorePromise) {
-        mongoStorePromise = dbConnect().then(() =>
-            MongoStore.create({ mongoUrl: process.env.MONGODB_URI })
-        );
+        mongoStorePromise = dbConnect().then(() => {
+            return MongoStore.create({ mongoUrl: process.env.MONGODB_URI });
+        }).then((store) => {
+            console.log('MongoStore created successfully');
+            return store;
+        }).catch((error) => {
+            console.error('MongoStore creation failed:', error);
+            throw error;
+        });
     }
     return mongoStorePromise;
 }
 
-// Initialize session and routes
-async function initializeApp() {
+
+
+// Initialize session and passport first, then register routes
+async function setupServer() {
     try {
+        // Set up session and passport first
         const store = await getMongoStore();
 
         app.use(session({
@@ -89,19 +109,21 @@ async function initializeApp() {
         app.use(passport.initialize());
         app.use(passport.session());
 
-        // Auth and receipts routes
+        console.log('Session and passport initialized successfully');
+
+        // Now register routes after session/passport are set up
         app.use('/api/auth', require('./routes/auth'));
         app.use('/api/receipts', require('./routes/receipts'));
+        console.log('Routes registered successfully');
 
-        console.log('Session and routes initialized successfully');
     } catch (error) {
-        console.error('Failed to initialize session and routes:', error);
-        process.exit(1); // Exit if critical initialization fails
+        console.error('Failed to setup server:', error);
+        // Don't exit - let the server run with basic functionality
     }
 }
 
-// Initialize the app
-initializeApp();
+// Setup the server
+setupServer();
 
 // Serve static files from React build (for single service deployment)
 if (process.env.NODE_ENV === 'production') {
