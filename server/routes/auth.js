@@ -9,6 +9,12 @@ const router = express.Router();
 router.post('/register', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ message: 'All fields required.' });
+
+    // Check if session is available
+    if (!req.session) {
+        return res.status(503).json({ message: 'Server is starting up, please try again in a moment.' });
+    }
+
     try {
         const existing = await User.findOne({ username });
         if (existing) return res.status(400).json({ message: 'Username already exists.' });
@@ -30,6 +36,11 @@ router.post('/register', async (req, res) => {
 
 // Login
 router.post('/login', (req, res, next) => {
+    // Check if session is available
+    if (!req.session) {
+        return res.status(503).json({ message: 'Server is starting up, please try again in a moment.' });
+    }
+
     passport.authenticate('local', (err, user, info) => {
         if (err) {
             console.error('Login authentication error:', err);

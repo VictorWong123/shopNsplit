@@ -25,7 +25,15 @@ app.use(cors({
 
 // Health check route (for Render.com health checks)
 app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+    res.status(200).json({
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        routes: {
+            auth: '/api/auth/*',
+            receipts: '/api/receipts/*',
+            test: '/api/test'
+        }
+    });
 });
 
 // Test route (always available)
@@ -86,10 +94,15 @@ function getMongoStore() {
 
 
 
-// Initialize session and passport first, then register routes
+// Register routes immediately (don't wait for async setup)
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/receipts', require('./routes/receipts'));
+console.log('Routes registered immediately');
+
+// Initialize session and passport in background
 async function setupServer() {
     try {
-        // Set up session and passport first
+        // Set up session and passport
         const store = await getMongoStore();
 
         app.use(session({
@@ -110,20 +123,12 @@ async function setupServer() {
         app.use(passport.session());
 
         console.log('Session and passport initialized successfully');
-
-        // Now register routes after session/passport are set up
-        app.use('/api/auth', require('./routes/auth'));
-        app.use('/api/receipts', require('./routes/receipts'));
-        console.log('Routes registered successfully');
-
+        return true;
     } catch (error) {
         console.error('Failed to setup server:', error);
-        // Don't exit - let the server run with basic functionality
+        return false;
     }
 }
-
-// Setup the server
-setupServer();
 
 // Serve static files from React build (for single service deployment)
 if (process.env.NODE_ENV === 'production') {
@@ -149,8 +154,19 @@ app.use('/api/*', (req, res) => {
     res.status(404).json({ message: 'API endpoint not found' });
 });
 
-// Start server (for both development and production)
+// Start server immediately, setup session in background
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    // Setup session in background
+    setupServer().then(success => {
+        if (success) {
+            console.log('Background setup completed successfully');
+        } else {
+            console.log('Background setup failed, but server is running');
+        }
+    });
+});
 
 module.exports = app; 

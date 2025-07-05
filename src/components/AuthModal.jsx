@@ -180,6 +180,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.username ? 'border-red-500' : 'border-gray-300'
                                 }`}
                             placeholder="Enter your username"
+                            autoComplete="username"
                         />
                         {errors.username && <ValidationMessage message={errors.username} />}
                     </div>
@@ -197,6 +198,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.password ? 'border-red-500' : 'border-gray-300'
                                 }`}
                             placeholder="Enter your password"
+                            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                         />
                         {mode === 'register' && formData.password && (
                             <div className="mt-1">
@@ -237,6 +239,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
                                     }`}
                                 placeholder="Confirm your password"
+                                autoComplete="new-password"
                             />
                             {errors.confirmPassword && <ValidationMessage message={errors.confirmPassword} />}
                         </div>
