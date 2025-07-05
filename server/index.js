@@ -28,6 +28,7 @@ app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'OK',
         timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
         routes: {
             auth: '/api/auth/*',
             receipts: '/api/receipts/*',
@@ -43,7 +44,11 @@ app.get('/api/test', (req, res) => {
 
 // Test route for auth
 app.get('/api/auth-test', (req, res) => {
-    res.json({ message: 'Auth route test - working!' });
+    res.json({
+        message: 'Auth route test - working!',
+        sessionAvailable: !!req.session,
+        user: req.user || null
+    });
 });
 
 // --- Mongoose connection cache ---
@@ -94,10 +99,11 @@ function getMongoStore() {
     return mongoStorePromise;
 }
 
-// Session and passport setup (synchronous for development)
+// Session and passport setup
 if (process.env.NODE_ENV === 'production') {
-    // Use MongoDB store for production
-    getMongoStore().then(store => {
+    // Use MongoDB store for production - synchronous setup with fallback
+    try {
+        const store = MongoStore.create({ mongoUrl: process.env.MONGODB_URI });
         app.use(session({
             secret: process.env.SESSION_SECRET || 'fallback-secret',
             resave: false,
@@ -113,9 +119,24 @@ if (process.env.NODE_ENV === 'production') {
         app.use(passport.initialize());
         app.use(passport.session());
         console.log('Session and passport initialized successfully (production)');
-    }).catch(err => {
+    } catch (err) {
         console.error('Session/passport setup failed:', err);
-    });
+        // Fallback to memory store if MongoDB store fails
+        app.use(session({
+            secret: process.env.SESSION_SECRET || 'fallback-secret',
+            resave: false,
+            saveUninitialized: false,
+            cookie: {
+                maxAge: 1000 * 60 * 60 * 24,
+                secure: true,
+                sameSite: 'none'
+            },
+        }));
+        require('./passportConfig')(passport);
+        app.use(passport.initialize());
+        app.use(passport.session());
+        console.log('Session and passport initialized with fallback (production)');
+    }
 } else {
     // Use memory store for development (immediate availability)
     app.use(session({
@@ -162,7 +183,7 @@ app.use('/api/*', (req, res) => {
     res.status(404).json({ message: 'API endpoint not found' });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
