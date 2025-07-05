@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ValidationMessage from './ValidationMessage';
 import PrimaryButton from './PrimaryButton';
 import { auth, users } from '../supabaseClient';
+import { supabaseClient } from '../supabaseClient';
 
 const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMode }) => {
     const [formData, setFormData] = useState({
