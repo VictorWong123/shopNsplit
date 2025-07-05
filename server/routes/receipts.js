@@ -1,6 +1,7 @@
 const express = require('express');
 const Receipt = require('../models/Receipt');
 const User = require('../models/User');
+const receiptStorage = require('../receiptStorage');
 
 const router = express.Router();
 
@@ -12,14 +13,11 @@ function ensureAuth(req, res, next) {
 // Save a receipt
 router.post('/', ensureAuth, async (req, res) => {
     try {
-        const receipt = new Receipt({
-            owner: req.user._id,
+        const receipt = receiptStorage.addReceipt({
+            owner: req.user.id,
             data: req.body.data,
             name: req.body.name || '',
         });
-        await receipt.save();
-        req.user.receipts.push(receipt._id);
-        await req.user.save();
         res.json({ receipt });
     } catch (err) {
         res.status(500).json({ message: 'Failed to save receipt.' });
@@ -29,7 +27,7 @@ router.post('/', ensureAuth, async (req, res) => {
 // Get all receipts for user
 router.get('/', ensureAuth, async (req, res) => {
     try {
-        const receipts = await Receipt.find({ owner: req.user._id }).sort({ createdAt: -1 });
+        const receipts = receiptStorage.getReceiptsByOwner(req.user.id);
         res.json({ receipts });
     } catch (err) {
         res.status(500).json({ message: 'Failed to fetch receipts.' });
@@ -39,15 +37,12 @@ router.get('/', ensureAuth, async (req, res) => {
 // Update receipt name
 router.put('/:id', ensureAuth, async (req, res) => {
     try {
-        const receipt = await Receipt.findOneAndUpdate(
-            { _id: req.params.id, owner: req.user._id },
-            { name: req.body.name },
-            { new: true }
-        );
-        if (!receipt) {
+        const receipt = receiptStorage.getReceipt(req.params.id);
+        if (!receipt || receipt.owner !== req.user.id) {
             return res.status(404).json({ message: 'Receipt not found.' });
         }
-        res.json({ receipt });
+        const updatedReceipt = receiptStorage.updateReceipt(req.params.id, { name: req.body.name });
+        res.json({ receipt: updatedReceipt });
     } catch (err) {
         res.status(500).json({ message: 'Failed to update receipt.' });
     }
@@ -56,16 +51,11 @@ router.put('/:id', ensureAuth, async (req, res) => {
 // Delete receipt
 router.delete('/:id', ensureAuth, async (req, res) => {
     try {
-        const receipt = await Receipt.findOneAndDelete({ _id: req.params.id, owner: req.user._id });
-        if (!receipt) {
+        const receipt = receiptStorage.getReceipt(req.params.id);
+        if (!receipt || receipt.owner !== req.user.id) {
             return res.status(404).json({ message: 'Receipt not found.' });
         }
-
-        // Remove from user's receipts array
-        await User.findByIdAndUpdate(req.user._id, {
-            $pull: { receipts: req.params.id }
-        });
-
+        receiptStorage.deleteReceipt(req.params.id);
         res.json({ message: 'Receipt deleted successfully.' });
     } catch (err) {
         res.status(500).json({ message: 'Failed to delete receipt.' });

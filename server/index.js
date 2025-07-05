@@ -23,7 +23,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Health check route (for Render.com health checks)
+// Health check route
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'OK',
@@ -36,7 +36,7 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Test route (always available)
+// Test route
 app.get('/api/test', (req, res) => {
     res.json({ message: 'Server is running!' });
 });
@@ -51,13 +51,14 @@ let cached = global.mongoose;
 if (!cached) {
     cached = global.mongoose = { conn: null, promise: null };
 }
-
 function dbConnect() {
     if (cached.conn) {
         return Promise.resolve(cached.conn);
     }
     if (!cached.promise) {
-        cached.promise = mongoose.connect(process.env.MONGODB_URI, {
+        // Use a default MongoDB URI if none is provided
+        const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/shopnsplit';
+        cached.promise = mongoose.connect(mongoUri, {
             maxPoolSize: 10,
             serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
@@ -66,7 +67,8 @@ function dbConnect() {
             return mongoose;
         }).catch((error) => {
             console.error('MongoDB connection failed:', error);
-            throw error;
+            // Don't throw error, just log it
+            return null;
         });
     }
     return cached.promise.then((conn) => {
@@ -92,48 +94,54 @@ function getMongoStore() {
     return mongoStorePromise;
 }
 
-
-
-// Register routes immediately (don't wait for async setup)
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/receipts', require('./routes/receipts'));
-console.log('Routes registered immediately');
-
-// Initialize session and passport in background
-async function setupServer() {
-    try {
-        // Set up session and passport
-        const store = await getMongoStore();
-
+// Session and passport setup (synchronous for development)
+if (process.env.NODE_ENV === 'production') {
+    // Use MongoDB store for production
+    getMongoStore().then(store => {
         app.use(session({
-            secret: process.env.SESSION_SECRET,
+            secret: process.env.SESSION_SECRET || 'fallback-secret',
             resave: false,
             saveUninitialized: false,
             store,
             cookie: {
-                maxAge: 1000 * 60 * 60 * 24, // 1 day
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+                maxAge: 1000 * 60 * 60 * 24,
+                secure: true,
+                sameSite: 'none'
             },
         }));
-
-        // Passport config
         require('./passportConfig')(passport);
         app.use(passport.initialize());
         app.use(passport.session());
-
-        console.log('Session and passport initialized successfully');
-        return true;
-    } catch (error) {
-        console.error('Failed to setup server:', error);
-        return false;
-    }
+        console.log('Session and passport initialized successfully (production)');
+    }).catch(err => {
+        console.error('Session/passport setup failed:', err);
+    });
+} else {
+    // Use memory store for development (immediate availability)
+    app.use(session({
+        secret: process.env.SESSION_SECRET || 'fallback-secret',
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+            maxAge: 1000 * 60 * 60 * 24,
+            secure: false,
+            sameSite: 'lax'
+        },
+    }));
+    require('./passportConfig')(passport);
+    app.use(passport.initialize());
+    app.use(passport.session());
+    console.log('Session and passport initialized successfully (development)');
 }
+
+// Register routes after session setup
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/receipts', require('./routes/receipts'));
+console.log('Routes registered after session setup');
 
 // Serve static files from React build (for single service deployment)
 if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.join(__dirname, '../build')));
-
     // Handle React Router - serve index.html for all non-API routes
     app.get('*', (req, res, next) => {
         if (req.path.startsWith('/api/')) {
@@ -154,19 +162,9 @@ app.use('/api/*', (req, res) => {
     res.status(404).json({ message: 'API endpoint not found' });
 });
 
-// Start server immediately, setup session in background
 const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    // Setup session in background
-    setupServer().then(success => {
-        if (success) {
-            console.log('Background setup completed successfully');
-        } else {
-            console.log('Background setup failed, but server is running');
-        }
-    });
 });
 
 module.exports = app; 

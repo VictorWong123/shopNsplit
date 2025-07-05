@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const passport = require('passport');
 const User = require('../models/User');
+const userStorage = require('../userStorage');
 
 const router = express.Router();
 
@@ -16,17 +17,21 @@ router.post('/register', async (req, res) => {
     }
 
     try {
-        const existing = await User.findOne({ username });
-        if (existing) return res.status(400).json({ message: 'Username already exists.' });
+        // Check if user exists in memory
+        if (userStorage.getUser(username)) {
+            return res.status(400).json({ message: 'Username already exists.' });
+        }
+
         const hash = await bcrypt.hash(password, 10);
-        const user = new User({ username, password: hash });
-        await user.save();
+        const user = { id: Date.now().toString(), username, password: hash };
+        userStorage.addUser(username, user);
+
         req.login(user, err => {
             if (err) {
                 console.error('Login after register error:', err);
                 return res.status(500).json({ message: 'Login after register failed.' });
             }
-            res.json({ user: { id: user._id, username: user.username } });
+            res.json({ user: { id: user.id, username: user.username } });
         });
     } catch (err) {
         console.error('Register error:', err);
@@ -54,7 +59,7 @@ router.post('/login', (req, res, next) => {
                 console.error('Login session error:', err);
                 return res.status(500).json({ message: 'Login failed.' });
             }
-            res.json({ user: { id: user._id, username: user.username } });
+            res.json({ user: { id: user.id, username: user.username } });
         });
     })(req, res, next);
 });
