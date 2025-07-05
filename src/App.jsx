@@ -50,6 +50,24 @@ function App() {
     useEffect(() => {
         checkAuthStatus();
         checkForSharedReceipt();
+
+        // Handle email confirmation
+        const handleEmailConfirmation = async () => {
+            const { data, error } = await auth.handleEmailConfirmation();
+            if (data?.session?.user) {
+                setUser({
+                    id: data.session.user.id,
+                    email: data.session.user.email,
+                    username: data.session.user.email.split('@')[0]
+                });
+                setNotification({ message: 'Email confirmed successfully! You can now sign in.', type: 'success' });
+            }
+        };
+
+        // Check if user is returning from email confirmation
+        if (window.location.hash.includes('access_token')) {
+            handleEmailConfirmation();
+        }
     }, []);
 
     const checkForSharedReceipt = () => {

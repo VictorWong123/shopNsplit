@@ -1,13 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config';
 
-const supabaseUrl = SUPABASE_URL;
-const supabaseAnonKey = SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
     console.error('Missing Supabase environment variables');
-    console.log('SUPABASE_URL:', supabaseUrl ? 'SET' : 'NOT SET');
-    console.log('SUPABASE_ANON_KEY:', supabaseAnonKey ? 'SET' : 'NOT SET');
+    console.log('REACT_APP_SUPABASE_URL:', supabaseUrl ? 'SET' : 'NOT SET');
+    console.log('REACT_APP_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'SET' : 'NOT SET');
+    throw new Error('Supabase environment variables are required. Please check your .env file or Vercel environment variables.');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -28,7 +28,8 @@ export const auth = {
             options: {
                 data: {
                     username: username
-                }
+                },
+                emailRedirectTo: window.location.origin
             }
         });
         return { data, error };
@@ -58,6 +59,12 @@ export const auth = {
     // Listen to auth changes
     onAuthStateChange: (callback) => {
         return supabase.auth.onAuthStateChange(callback);
+    },
+
+    // Handle email confirmation
+    handleEmailConfirmation: async () => {
+        const { data, error } = await supabase.auth.getSession();
+        return { data, error };
     }
 };
 

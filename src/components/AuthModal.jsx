@@ -5,7 +5,7 @@ import { auth, users } from '../supabaseClient';
 
 const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMode }) => {
     const [formData, setFormData] = useState({
-        username: '',
+        email: '',
         password: '',
         confirmPassword: ''
     });
@@ -48,10 +48,10 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
     const validateForm = () => {
         const newErrors = {};
 
-        if (!formData.username.trim()) {
-            newErrors.username = 'Username is required';
-        } else if (formData.username.length < 3) {
-            newErrors.username = 'Username must be at least 3 characters';
+        if (!formData.email.trim()) {
+            newErrors.email = 'Email is required';
+        } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+            newErrors.email = 'Please enter a valid email address';
         }
 
         if (!formData.password) {
@@ -108,12 +108,14 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
 
         try {
             if (mode === 'login') {
-                // Sign in with email (using username as email for now)
-                const { data, error } = await auth.signIn(formData.username, formData.password);
+                // Sign in with email
+                const { data, error } = await auth.signIn(formData.email, formData.password);
 
                 if (error) {
                     if (error.message.includes('Invalid login credentials')) {
-                        setMessage('Incorrect username or password');
+                        setMessage('Incorrect email or password');
+                    } else if (error.message.includes('Email not confirmed')) {
+                        setMessage('Please check your email and click the confirmation link before signing in');
                     } else {
                         setMessage(error.message);
                     }
@@ -123,31 +125,37 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                     const user = {
                         id: data.user.id,
                         email: data.user.email,
-                        username: userProfile?.username || data.user.user_metadata?.username || data.user.email.split('@')[0]
+                        username: userProfile?.username || data.user.email.split('@')[0]
                     };
                     onAuthSuccess(user);
                     onClose();
                 }
             } else {
                 // Register new user
-                const { data, error } = await auth.signUp(formData.username, formData.password, formData.username);
+                const { data, error } = await auth.signUp(formData.email, formData.password, formData.email.split('@')[0]);
 
                 if (error) {
                     setMessage(error.message);
                 } else if (data.user) {
                     // Create user profile
                     await users.upsertUser(data.user.id, {
-                        username: formData.username,
-                        email: formData.username // Using username as email
+                        username: formData.email.split('@')[0],
+                        email: formData.email
                     });
 
-                    const user = {
-                        id: data.user.id,
-                        email: data.user.email,
-                        username: formData.username
-                    };
-                    onAuthSuccess(user);
-                    onClose();
+                    if (data.user.email_confirmed_at) {
+                        // Email already confirmed
+                        const user = {
+                            id: data.user.id,
+                            email: data.user.email,
+                            username: formData.email.split('@')[0]
+                        };
+                        onAuthSuccess(user);
+                        onClose();
+                    } else {
+                        // Email confirmation required
+                        setMessage('Please check your email and click the confirmation link to complete registration');
+                    }
                 }
             }
         } catch (error) {
@@ -158,7 +166,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
     };
 
     const switchMode = () => {
-        setFormData({ username: '', password: '', confirmPassword: '' });
+        setFormData({ email: '', password: '', confirmPassword: '' });
         setErrors({});
         setMessage('');
         // This will be handled by the parent component
@@ -185,21 +193,21 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-                            Username
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                            Email
                         </label>
                         <input
-                            type="text"
-                            id="username"
-                            name="username"
-                            value={formData.username}
+                            type="email"
+                            id="email"
+                            name="email"
+                            value={formData.email}
                             onChange={handleInputChange}
-                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.username ? 'border-red-500' : 'border-gray-300'
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.email ? 'border-red-500' : 'border-gray-300'
                                 }`}
-                            placeholder="Enter your username"
-                            autoComplete="username"
+                            placeholder="Enter your email"
+                            autoComplete="email"
                         />
-                        {errors.username && <ValidationMessage message={errors.username} />}
+                        {errors.email && <ValidationMessage message={errors.email} />}
                     </div>
 
                     <div>
