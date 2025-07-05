@@ -60,7 +60,7 @@ function SharedReceiptPage({ receiptId }) {
         );
     }
 
-    const { names, everyoneItems = [], splitGroupsItems = [], personalItems = [] } = receipt.data;
+    const { participants: names = [], everyone_items: everyoneItems = [], split_groups_items: splitGroupsItems = [], personal_items: personalItems = [] } = receipt;
 
     // Calculate totals using utility functions
     const everyoneTotal = calculateEveryoneTotal(everyoneItems);
