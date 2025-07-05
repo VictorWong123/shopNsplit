@@ -1,21 +1,27 @@
--- ShopNSplit Database Setup for Supabase
+-- Complete Database Setup for ShopNSplit App
 -- Run this in your Supabase SQL Editor
 
--- Create users table
+-- Enable necessary extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Create users table (profiles)
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    username TEXT NOT NULL,
-    email TEXT NOT NULL,
+    id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create receipts table
 CREATE TABLE IF NOT EXISTS receipts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name TEXT,
-    data JSONB NOT NULL,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    title TEXT NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    items JSONB NOT NULL,
+    participants JSONB NOT NULL,
+    split_groups JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -23,54 +29,82 @@ CREATE TABLE IF NOT EXISTS receipts (
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_receipts_user_id ON receipts(user_id);
 CREATE INDEX IF NOT EXISTS idx_receipts_created_at ON receipts(created_at);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+
+-- Create updated_at trigger function
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create triggers for updated_at
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_receipts_updated_at BEFORE UPDATE ON receipts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Create function to handle new user registration
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO users (id, username, email)
+    VALUES (
+        NEW.id,
+        COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
+        NEW.email
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create trigger for new user registration
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE receipts ENABLE ROW LEVEL SECURITY;
 
--- Create policies for users table
-CREATE POLICY "Users can view own data" ON users
+-- RLS Policies for users table
+CREATE POLICY "Users can view their own profile" ON users
     FOR SELECT USING (auth.uid() = id);
 
-CREATE POLICY "Users can insert own data" ON users
-    FOR INSERT WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "Users can update own data" ON users
+CREATE POLICY "Users can update their own profile" ON users
     FOR UPDATE USING (auth.uid() = id);
 
--- Create policies for receipts table
-CREATE POLICY "Users can view own receipts" ON receipts
-    FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "Users can insert their own profile" ON users
+    FOR INSERT WITH CHECK (auth.uid() = id);
 
-CREATE POLICY "Users can insert own receipts" ON receipts
-    FOR INSERT WITH CHECK (user_id = auth.uid());
+-- RLS Policies for receipts table
+CREATE POLICY "Users can view their own receipts" ON receipts
+    FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can update own receipts" ON receipts
-    FOR UPDATE USING (user_id = auth.uid());
+CREATE POLICY "Users can insert their own receipts" ON receipts
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can delete own receipts" ON receipts
-    FOR DELETE USING (user_id = auth.uid());
+CREATE POLICY "Users can update their own receipts" ON receipts
+    FOR UPDATE USING (auth.uid() = user_id);
 
--- Allow public access to shared receipts (for sharing functionality)
+CREATE POLICY "Users can delete their own receipts" ON receipts
+    FOR DELETE USING (auth.uid() = user_id);
+
+-- Policy for public access to shared receipts (by ID)
 CREATE POLICY "Public can view shared receipts" ON receipts
     FOR SELECT USING (true);
 
--- Create function to automatically create user profile on signup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
-BEGIN
-    INSERT INTO public.users (id, username, email)
-    VALUES (
-        new.id,
-        COALESCE(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
-        new.email
-    );
-    RETURN new;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- Grant necessary permissions
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON users TO anon, authenticated;
+GRANT ALL ON receipts TO anon, authenticated;
 
--- Create trigger to automatically create user profile
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user(); 
+-- Insert some sample data for testing (optional)
+-- INSERT INTO users (id, username, email) VALUES 
+--     ('00000000-0000-0000-0000-000000000001', 'testuser', 'test@example.com')
+-- ON CONFLICT (id) DO NOTHING; 

@@ -187,7 +187,6 @@ const ReceiptsPage = ({ onBack }) => {
     }
 
     if (selectedReceipt) {
-        const receiptData = selectedReceipt.data;
         return (
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between mb-6">
@@ -203,7 +202,7 @@ const ReceiptsPage = ({ onBack }) => {
                     <div className="flex space-x-2">
                         <ShareButton
                             receiptId={selectedReceipt.id}
-                            receiptName={selectedReceipt.name || `Receipt from ${formatDate(selectedReceipt.createdAt)}`}
+                            receiptName={selectedReceipt.title || `Receipt from ${formatDate(selectedReceipt.created_at)}`}
                         />
                         <button
                             onClick={() => handleDeleteReceipt(selectedReceipt)}
@@ -224,17 +223,17 @@ const ReceiptsPage = ({ onBack }) => {
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 print:p-0">
                     <div className="text-center mb-6">
                         <h1 className="text-2xl font-bold text-gray-900">
-                            {selectedReceipt.name || 'Receipt'}
+                            {selectedReceipt.title || 'Receipt'}
                         </h1>
-                        <p className="text-gray-500">{formatDate(selectedReceipt.createdAt)}</p>
+                        <p className="text-gray-500">{formatDate(selectedReceipt.created_at)}</p>
                     </div>
 
-                    {/* Everyone Items */}
-                    {receiptData.everyoneItems && receiptData.everyoneItems.length > 0 && (
+                    {/* Items */}
+                    {selectedReceipt.items && selectedReceipt.items.length > 0 && (
                         <div className="mb-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-3">Items for Everyone</h2>
+                            <h2 className="text-lg font-semibold text-gray-900 mb-3">Items</h2>
                             <div className="space-y-2">
-                                {receiptData.everyoneItems
+                                {selectedReceipt.items
                                     .filter(item => (item.name && item.name.trim() !== '') || (parseFloat(item.price) || 0) > 0)
                                     .map((item, index) => (
                                         <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100">
@@ -247,17 +246,17 @@ const ReceiptsPage = ({ onBack }) => {
                     )}
 
                     {/* Split Groups */}
-                    {receiptData.splitGroupsItems && receiptData.splitGroupsItems.length > 0 && (
+                    {selectedReceipt.split_groups && selectedReceipt.split_groups.length > 0 && (
                         <div className="mb-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-3">Split Groups</h2>
-                            {receiptData.splitGroupsItems.map((group, groupIndex) => (
+                            {selectedReceipt.split_groups.map((group, groupIndex) => (
                                 <div key={groupIndex} className="mb-4 p-4 bg-gray-50 rounded-lg">
                                     <h3 className="font-medium text-gray-800 mb-2">
-                                        Split among: {group.participants.join(', ')}
+                                        Split among: {group.participants?.join(', ') || 'Unknown'}
                                     </h3>
                                     <div className="space-y-2">
                                         {group.items
-                                            .filter(item => (item.name && item.name.trim() !== '') || (parseFloat(item.price) || 0) > 0)
+                                            ?.filter(item => (item.name && item.name.trim() !== '') || (parseFloat(item.price) || 0) > 0)
                                             .map((item, itemIndex) => (
                                                 <div key={itemIndex} className="flex justify-between items-center py-1">
                                                     <span className="text-gray-700">{item.name || 'Unnamed Item'}</span>
@@ -270,64 +269,27 @@ const ReceiptsPage = ({ onBack }) => {
                         </div>
                     )}
 
-                    {/* Personal Items */}
-                    {receiptData.personalItems && receiptData.personalItems.length > 0 && (
+                    {/* Participants */}
+                    {selectedReceipt.participants && selectedReceipt.participants.length > 0 && (
                         <div className="mb-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-3">Personal Items</h2>
-                            {receiptData.personalItems.map((personalItem, index) => (
-                                <div key={index} className="mb-4">
-                                    <h3 className="font-medium text-gray-800 mb-2">For {personalItem.owner}:</h3>
-                                    <div className="space-y-2">
-                                        {personalItem.items
-                                            .filter(item => (item.name && item.name.trim() !== '') || (parseFloat(item.price) || 0) > 0)
-                                            .map((item, itemIndex) => (
-                                                <div key={itemIndex} className="flex justify-between items-center py-1 border-b border-gray-100">
-                                                    <span className="text-gray-700">{item.name || 'Unnamed Item'}</span>
-                                                    <span className="font-medium">${(parseFloat(item.price) || 0).toFixed(2)}</span>
-                                                </div>
-                                            ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Totals */}
-                    <div className="border-t border-gray-200 pt-4">
-                        <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-600">Everyone Items:</span>
-                                <span>${receiptData.totals?.everyoneTotal?.toFixed(2) || '0.00'}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-600">Split Groups:</span>
-                                <span>${receiptData.totals?.groupsTotal?.toFixed(2) || '0.00'}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-600">Personal Items:</span>
-                                <span>${receiptData.totals?.personalTotal?.toFixed(2) || '0.00'}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-lg font-semibold border-t border-gray-200 pt-3">
-                                <span>Grand Total</span>
-                                <span>${calculateTotal(receiptData)}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Per-Person Breakdown */}
-                    {receiptData.totals?.personTotals && receiptData.totals.personTotals.length > 0 && (
-                        <div className="border-t border-gray-200 pt-4">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Per-Person Totals</h3>
-                            <div className="space-y-2">
-                                {receiptData.totals.personTotals.map((person, index) => (
-                                    <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
-                                        <span className="font-medium text-gray-900">{person.name}</span>
-                                        <span className="font-semibold text-teal-600">${person.total.toFixed(2)}</span>
-                                    </div>
+                            <h2 className="text-lg font-semibold text-gray-900 mb-3">Participants</h2>
+                            <div className="flex flex-wrap gap-2">
+                                {selectedReceipt.participants.map((participant, index) => (
+                                    <span key={index} className="bg-teal-100 text-teal-800 px-3 py-1 rounded-full text-sm">
+                                        {participant}
+                                    </span>
                                 ))}
                             </div>
                         </div>
                     )}
+
+                    {/* Total */}
+                    <div className="border-t border-gray-200 pt-4">
+                        <div className="flex justify-between items-center text-lg font-semibold">
+                            <span>Total Amount</span>
+                            <span>${(selectedReceipt.total_amount || 0).toFixed(2)}</span>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Delete Confirmation Modal (moved here so it works for single receipt view) */}
@@ -433,7 +395,7 @@ const ReceiptsPage = ({ onBack }) => {
                                                 }}
                                                 className="text-lg font-medium text-gray-900 cursor-pointer hover:text-teal-600 transition-colors"
                                             >
-                                                {receipt.name || `Receipt from ${formatDate(receipt.createdAt)}`}
+                                                {receipt.title || `Receipt from ${formatDate(receipt.created_at)}`}
                                             </h3>
                                             <button
                                                 onClick={(e) => {
@@ -449,11 +411,11 @@ const ReceiptsPage = ({ onBack }) => {
                                         </div>
                                     )}
                                     <p className="text-gray-500 mt-1">
-                                        Total: ${calculateTotal(receipt.data)}
+                                        Total: ${receipt.total_amount || 0}
                                     </p>
-                                    {receipt.data.names && (
+                                    {receipt.participants && receipt.participants.length > 0 && (
                                         <p className="text-sm text-gray-500 mt-1">
-                                            Participants: {receipt.data.names.join(', ')}
+                                            Participants: {receipt.participants.join(', ')}
                                         </p>
                                     )}
                                 </div>
@@ -489,7 +451,7 @@ const ReceiptsPage = ({ onBack }) => {
                             <h3 className="text-lg font-semibold text-gray-900">Delete Receipt</h3>
                         </div>
                         <p className="text-gray-600 mb-6">
-                            Are you sure you want to delete "{receiptToDelete.name || `Receipt from ${formatDate(receiptToDelete.createdAt)}`}"?
+                            Are you sure you want to delete "{receiptToDelete.title || `Receipt from ${formatDate(receiptToDelete.created_at)}`}"?
                             This action cannot be undone.
                         </p>
                         <div className="flex space-x-3">

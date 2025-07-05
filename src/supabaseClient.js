@@ -65,6 +65,14 @@ export const auth = {
     handleEmailConfirmation: async () => {
         const { data, error } = await supabase.auth.getSession();
         return { data, error };
+    },
+
+    // Reset password
+    resetPassword: async (email) => {
+        const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/reset-password`
+        });
+        return { data, error };
     }
 };
 
@@ -75,19 +83,20 @@ export const receipts = {
         try {
             console.log('Fetching receipts for user:', userId);
 
-            const { data, error } = await supabase
-                .from('receipts')
-                .select('*')
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false });
+            const response = await fetch('/api/receipts', {
+                method: 'GET',
+                credentials: 'include',
+            });
 
-            if (error) {
-                console.error('Error fetching receipts:', error);
-                return { data: [], error };
+            const result = await response.json();
+
+            if (!response.ok) {
+                console.error('Error fetching receipts:', result);
+                return { data: [], error: result };
             }
 
-            console.log('Receipts fetched successfully:', data);
-            return { data: data || [], error: null };
+            console.log('Receipts fetched successfully:', result);
+            return { data: result.receipts || [], error: null };
         } catch (error) {
             console.error('Exception in getUserReceipts:', error);
             return { data: [], error };
@@ -100,38 +109,36 @@ export const receipts = {
             console.log('Saving receipt for user:', userId);
             console.log('Receipt data:', receiptData);
 
-            // Check for duplicates first
-            const existingReceipt = await supabase
-                .from('receipts')
-                .select('id')
-                .eq('user_id', userId)
-                .eq('data', JSON.stringify(receiptData))
-                .single();
+            // Use the backend API instead of direct Supabase access
+            const response = await fetch('/api/receipts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    title: receiptData.name || 'Receipt',
+                    totalAmount: receiptData.totals?.grandTotal || 0,
+                    items: receiptData.everyoneItems || [],
+                    participants: receiptData.names || [],
+                    splitGroups: receiptData.splitGroupsItems || []
+                })
+            });
 
-            if (existingReceipt.data) {
+            const result = await response.json();
+
+            if (!response.ok) {
+                console.error('Error saving receipt:', result);
+                return { error: result };
+            }
+
+            if (result.message === 'Already saved') {
                 console.log('Receipt already exists');
-                return { data: existingReceipt.data, message: 'Already saved' };
+                return { data: null, message: 'Already saved' };
             }
 
-            const { data, error } = await supabase
-                .from('receipts')
-                .insert([
-                    {
-                        user_id: userId,
-                        data: receiptData,
-                        name: receiptData.name || new Date().toLocaleString()
-                    }
-                ])
-                .select()
-                .single();
-
-            if (error) {
-                console.error('Error saving receipt:', error);
-                return { error };
-            }
-
-            console.log('Receipt saved successfully:', data);
-            return { data };
+            console.log('Receipt saved successfully:', result);
+            return { data: result.receipt };
         } catch (error) {
             console.error('Exception in saveReceipt:', error);
             return { error };
@@ -140,34 +147,66 @@ export const receipts = {
 
     // Get a specific receipt
     getReceipt: async (receiptId) => {
-        const { data, error } = await supabase
-            .from('receipts')
-            .select('*')
-            .eq('id', receiptId)
-            .single();
-        return { data, error };
+        try {
+            const response = await fetch(`/api/receipts/shared/${receiptId}`, {
+                method: 'GET',
+                credentials: 'include',
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                return { data: null, error: result };
+            }
+
+            return { data: result.receipt, error: null };
+        } catch (error) {
+            return { data: null, error };
+        }
     },
 
     // Delete a receipt
     deleteReceipt: async (receiptId, userId) => {
-        const { data, error } = await supabase
-            .from('receipts')
-            .delete()
-            .eq('id', receiptId)
-            .eq('user_id', userId);
-        return { data, error };
+        try {
+            const response = await fetch(`/api/receipts/${receiptId}`, {
+                method: 'DELETE',
+                credentials: 'include',
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                return { data: null, error: result };
+            }
+
+            return { data: result, error: null };
+        } catch (error) {
+            return { data: null, error };
+        }
     },
 
-    // Update receipt name
-    updateReceiptName: async (receiptId, name, userId) => {
-        const { data, error } = await supabase
-            .from('receipts')
-            .update({ name })
-            .eq('id', receiptId)
-            .eq('user_id', userId)
-            .select()
-            .single();
-        return { data, error };
+    // Update receipt title
+    updateReceiptName: async (receiptId, title, userId) => {
+        try {
+            const response = await fetch(`/api/receipts/${receiptId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({ title })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                return { data: null, error: result };
+            }
+
+            return { data: result.receipt, error: null };
+        } catch (error) {
+            return { data: null, error };
+        }
     }
 };
 

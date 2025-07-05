@@ -72,14 +72,16 @@ const userOperations = {
 
 // Receipt operations
 const receiptOperations = {
-    async createReceipt(ownerId, data, name = '') {
+    async createReceipt(userId, receiptData) {
         const { data: receipt, error } = await supabase
             .from('receipts')
             .insert([{
-                owner_id: ownerId,
-                data,
-                name,
-                created_at: new Date().toISOString()
+                user_id: userId,
+                title: receiptData.title || 'Receipt',
+                total_amount: receiptData.totalAmount || 0,
+                items: receiptData.items || [],
+                participants: receiptData.participants || [],
+                split_groups: receiptData.splitGroups || null
             }])
             .select()
             .single();
@@ -88,11 +90,11 @@ const receiptOperations = {
         return receipt;
     },
 
-    async getReceiptsByOwner(ownerId) {
+    async getReceiptsByUser(userId) {
         const { data, error } = await supabase
             .from('receipts')
             .select('*')
-            .eq('owner_id', ownerId)
+            .eq('user_id', userId)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -132,16 +134,24 @@ const receiptOperations = {
         return true;
     },
 
-    async receiptExists(ownerId, data) {
-        // Compare by owner and data (as JSON string)
-        const dataString = JSON.stringify(data);
+    async receiptExists(userId, receiptData) {
+        // Compare by user and receipt data (as JSON string)
+        const itemsString = JSON.stringify(receiptData.items || []);
+        const participantsString = JSON.stringify(receiptData.participants || []);
+
         const { data: receipts, error } = await supabase
             .from('receipts')
-            .select('id, data')
-            .eq('owner_id', ownerId);
+            .select('id, items, participants, total_amount')
+            .eq('user_id', userId);
+
         if (error) throw error;
         if (!receipts) return false;
-        return receipts.some(r => JSON.stringify(r.data) === dataString);
+
+        return receipts.some(r =>
+            JSON.stringify(r.items) === itemsString &&
+            JSON.stringify(r.participants) === participantsString &&
+            r.total_amount === (receiptData.totalAmount || 0)
+        );
     }
 };
 

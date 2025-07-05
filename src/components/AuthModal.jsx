@@ -9,6 +9,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
         password: '',
         confirmPassword: ''
     });
+    const [isForgotPassword, setIsForgotPassword] = useState(false);
     const [errors, setErrors] = useState({});
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState('');
@@ -54,7 +55,9 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
             newErrors.email = 'Please enter a valid email address';
         }
 
-        if (!formData.password) {
+        if (isForgotPassword) {
+            // Only validate email for forgot password
+        } else if (!formData.password) {
             newErrors.password = 'Password is required';
         } else if (mode === 'register') {
             // Strong password validation for registration
@@ -107,7 +110,14 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
         setIsLoading(true);
 
         try {
-            if (mode === 'login') {
+            if (isForgotPassword) {
+                const { data, error } = await supabaseClient.resetPassword(formData.email);
+                if (error) {
+                    setMessage(error.message);
+                } else {
+                    setMessage('Password reset link sent! Please check your email.');
+                }
+            } else if (mode === 'login') {
                 // Sign in with email
                 const { data, error } = await auth.signIn(formData.email, formData.password);
 
@@ -169,6 +179,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
         setFormData({ email: '', password: '', confirmPassword: '' });
         setErrors({});
         setMessage('');
+        setIsForgotPassword(false);
         // This will be handled by the parent component
     };
 
@@ -179,7 +190,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
             <div className="bg-white rounded-lg p-8 w-full max-w-md mx-4">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-900">
-                        {mode === 'login' ? 'Sign In' : 'Create Account'}
+                        {isForgotPassword ? 'Reset Password' : (mode === 'login' ? 'Sign In' : 'Create Account')}
                     </h2>
                     <button
                         onClick={onClose}
@@ -210,63 +221,92 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                         {errors.email && <ValidationMessage message={errors.email} />}
                     </div>
 
-                    <div>
-                        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                            Password
-                        </label>
-                        <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            value={formData.password}
-                            onChange={handleInputChange}
-                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.password ? 'border-red-500' : 'border-gray-300'
-                                }`}
-                            placeholder="Enter your password"
-                            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                        />
-                        {mode === 'register' && formData.password && (
-                            <div className="mt-1">
-                                <div className="flex items-center space-x-2">
-                                    <div className="flex space-x-1">
-                                        {[1, 2, 3, 4, 5].map((level) => {
-                                            const strength = getPasswordStrength(formData.password);
-                                            const isActive = level <= strength.score;
-                                            return (
-                                                <div
-                                                    key={level}
-                                                    className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500' : 'bg-gray-300'
-                                                        }`}
-                                                />
-                                            );
-                                        })}
-                                    </div>
-                                    <span className={`text-xs ${getPasswordStrength(formData.password).color}`}>
-                                        {getPasswordStrength(formData.password).label}
-                                    </span>
-                                </div>
+                    {!isForgotPassword && (
+                        <>
+                            <div>
+                                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                                    Password
+                                </label>
+                                <input
+                                    type="password"
+                                    id="password"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleInputChange}
+                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.password ? 'border-red-500' : 'border-gray-300'
+                                        }`}
+                                    placeholder="Enter your password"
+                                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                                />
+                                {errors.password && <ValidationMessage message={errors.password} />}
                             </div>
-                        )}
-                        {errors.password && <ValidationMessage message={errors.password} />}
-                    </div>
 
-                    {mode === 'register' && (
-                        <div>
-                            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                                Confirm Password
-                            </label>
-                            <input
-                                type="password"
-                                id="confirmPassword"
-                                name="confirmPassword"
-                                value={formData.confirmPassword}
-                                onChange={handleInputChange}
-                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-                                    }`}
-                                placeholder="Confirm your password"
-                                autoComplete="new-password"
-                            />
-                            {errors.confirmPassword && <ValidationMessage message={errors.confirmPassword} />}
+                            {mode === 'register' && (
+                                <div>
+                                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                                        Confirm Password
+                                    </label>
+                                    <input
+                                        type="password"
+                                        id="confirmPassword"
+                                        name="confirmPassword"
+                                        value={formData.confirmPassword}
+                                        onChange={handleInputChange}
+                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                                            }`}
+                                        placeholder="Confirm your password"
+                                        autoComplete="new-password"
+                                    />
+                                    {errors.confirmPassword && <ValidationMessage message={errors.confirmPassword} />}
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {!isForgotPassword && mode === 'register' && formData.password && (
+                        <div className="mt-1">
+                            <div className="flex items-center space-x-2">
+                                <div className="flex space-x-1">
+                                    {[1, 2, 3, 4, 5].map((level) => {
+                                        const strength = getPasswordStrength(formData.password);
+                                        const isActive = level <= strength.score;
+                                        return (
+                                            <div
+                                                key={level}
+                                                className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500' : 'bg-gray-300'
+                                                    }`}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                                <span className={`text-xs ${getPasswordStrength(formData.password).color}`}>
+                                    {getPasswordStrength(formData.password).label}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {mode === 'login' && !isForgotPassword && (
+                        <div className="text-right">
+                            <button
+                                type="button"
+                                onClick={() => setIsForgotPassword(true)}
+                                className="text-sm text-teal-600 hover:text-teal-700"
+                            >
+                                Forgot password?
+                            </button>
+                        </div>
+                    )}
+
+                    {isForgotPassword && (
+                        <div className="text-left">
+                            <button
+                                type="button"
+                                onClick={() => setIsForgotPassword(false)}
+                                className="text-sm text-teal-600 hover:text-teal-700"
+                            >
+                                ← Back to sign in
+                            </button>
                         </div>
                     )}
 
@@ -281,7 +321,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                         disabled={isLoading}
                         className="w-full"
                     >
-                        {isLoading ? 'Loading...' : (mode === 'login' ? 'Sign In' : 'Create Account')}
+                        {isLoading ? 'Loading...' : (isForgotPassword ? 'Send Reset Link' : (mode === 'login' ? 'Sign In' : 'Create Account'))}
                     </PrimaryButton>
                 </form>
 

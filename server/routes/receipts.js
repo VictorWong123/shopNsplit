@@ -14,15 +14,14 @@ router.post('/', ensureAuth, async (req, res) => {
         // Check for duplicate
         const alreadyExists = await receiptOperations.receiptExists(
             req.user.id,
-            req.body.data
+            req.body
         );
         if (alreadyExists) {
             return res.status(200).json({ message: 'Already saved' });
         }
         const receipt = await receiptOperations.createReceipt(
             req.user.id,
-            req.body.data,
-            req.body.name || ''
+            req.body
         );
         res.json({ receipt });
     } catch (err) {
@@ -34,7 +33,7 @@ router.post('/', ensureAuth, async (req, res) => {
 // Get all receipts for user
 router.get('/', ensureAuth, async (req, res) => {
     try {
-        const receipts = await receiptOperations.getReceiptsByOwner(req.user.id);
+        const receipts = await receiptOperations.getReceiptsByUser(req.user.id);
         res.json({ receipts });
     } catch (err) {
         console.error('Get receipts error:', err);
@@ -42,7 +41,7 @@ router.get('/', ensureAuth, async (req, res) => {
     }
 });
 
-// Update receipt name
+// Update receipt title
 router.put('/:id', ensureAuth, async (req, res) => {
     try {
         const receipt = await receiptOperations.getReceiptById(req.params.id);
@@ -50,15 +49,15 @@ router.put('/:id', ensureAuth, async (req, res) => {
             console.warn(`Update: Receipt not found for id=${req.params.id}`);
             return res.status(404).json({ message: 'Receipt not found.' });
         }
-        if (String(receipt.owner_id) !== String(req.user.id)) {
-            console.warn(`Update: User ${req.user.id} tried to update receipt owned by ${receipt.owner_id}`);
+        if (String(receipt.user_id) !== String(req.user.id)) {
+            console.warn(`Update: User ${req.user.id} tried to update receipt owned by ${receipt.user_id}`);
             return res.status(403).json({ message: 'Forbidden.' });
         }
-        if (!req.body.name || typeof req.body.name !== 'string') {
-            return res.status(400).json({ message: 'Invalid name.' });
+        if (!req.body.title || typeof req.body.title !== 'string') {
+            return res.status(400).json({ message: 'Invalid title.' });
         }
         const updatedReceipt = await receiptOperations.updateReceipt(req.params.id, {
-            name: req.body.name
+            title: req.body.title
         });
         res.json({ receipt: updatedReceipt });
     } catch (err) {
@@ -75,8 +74,8 @@ router.delete('/:id', ensureAuth, async (req, res) => {
             console.warn(`Delete: Receipt not found for id=${req.params.id}`);
             return res.status(404).json({ message: 'Receipt not found.' });
         }
-        if (String(receipt.owner_id) !== String(req.user.id)) {
-            console.warn(`Delete: User ${req.user.id} tried to delete receipt owned by ${receipt.owner_id}`);
+        if (String(receipt.user_id) !== String(req.user.id)) {
+            console.warn(`Delete: User ${req.user.id} tried to delete receipt owned by ${receipt.user_id}`);
             return res.status(403).json({ message: 'Forbidden.' });
         }
         await receiptOperations.deleteReceipt(req.params.id);
