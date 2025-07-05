@@ -19,7 +19,8 @@ router.post('/register', ensureSessionReady, async (req, res) => {
     console.log('Register request received:', {
         body: req.body,
         session: !!req.session,
-        environment: process.env.NODE_ENV
+        environment: process.env.NODE_ENV,
+        mongodbUri: process.env.MONGODB_URI ? 'Set' : 'Not set'
     });
 
     const { username, password } = req.body;
@@ -40,13 +41,17 @@ router.post('/register', ensureSessionReady, async (req, res) => {
             await user.save();
             console.log('User saved to MongoDB:', user._id);
 
+            console.log('About to login MongoDB user:', { userId: user._id, username: user.username });
             req.login(user, err => {
                 if (err) {
                     console.error('Login after register error:', err);
+                    console.error('Login error stack:', err.stack);
                     return res.status(500).json({ message: 'Login after register failed.' });
                 }
                 console.log('User logged in after registration');
-                res.json({ user: { id: user._id, username: user.username } });
+                // Handle both MongoDB (_id) and in-memory (id) user objects
+                const userId = user._id || user.id;
+                res.json({ user: { id: userId, username: user.username } });
             });
         } else {
             console.log('Using in-memory storage for user registration...');
@@ -61,13 +66,17 @@ router.post('/register', ensureSessionReady, async (req, res) => {
             userStorage.addUser(username, user);
             console.log('User added to memory storage:', user.id);
 
+            console.log('About to login memory user:', { userId: user.id, username: user.username });
             req.login(user, err => {
                 if (err) {
                     console.error('Login after register error:', err);
+                    console.error('Login error stack:', err.stack);
                     return res.status(500).json({ message: 'Login after register failed.' });
                 }
                 console.log('User logged in after registration');
-                res.json({ user: { id: user.id, username: user.username } });
+                // Handle both MongoDB (_id) and in-memory (id) user objects
+                const userId = user._id || user.id;
+                res.json({ user: { id: userId, username: user.username } });
             });
         }
     } catch (err) {
@@ -93,7 +102,9 @@ router.post('/login', ensureSessionReady, (req, res, next) => {
                 console.error('Login session error:', err);
                 return res.status(500).json({ message: 'Login failed.' });
             }
-            res.json({ user: { id: user.id, username: user.username } });
+            // Handle both MongoDB (_id) and in-memory (id) user objects
+            const userId = user._id || user.id;
+            res.json({ user: { id: userId, username: user.username } });
         });
     })(req, res, next);
 });
@@ -108,7 +119,9 @@ router.post('/logout', (req, res) => {
 // Get current user
 router.get('/me', (req, res) => {
     if (!req.user) return res.json({ user: null });
-    res.json({ user: { id: req.user._id, username: req.user.username } });
+    // Handle both MongoDB (_id) and in-memory (id) user objects
+    const userId = req.user._id || req.user.id;
+    res.json({ user: { id: userId, username: req.user.username } });
 });
 
 module.exports = router; 

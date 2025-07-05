@@ -29,7 +29,9 @@ module.exports = function (passport) {
     );
 
     passport.serializeUser((user, done) => {
-        done(null, user.id || user._id);
+        // Handle both MongoDB (_id) and in-memory (id) user objects
+        const userId = user._id || user.id;
+        done(null, userId);
     });
 
     passport.deserializeUser(async (id, done) => {
@@ -37,13 +39,22 @@ module.exports = function (passport) {
             if (process.env.NODE_ENV === 'production' && process.env.MONGODB_URI) {
                 // Find user in MongoDB
                 const user = await User.findById(id);
+                if (!user) {
+                    console.log('User not found in MongoDB during deserialization:', id);
+                    return done(null, null);
+                }
                 done(null, user);
             } else {
                 // Find user in memory
                 const user = userStorage.findUserById(id);
+                if (!user) {
+                    console.log('User not found in memory during deserialization:', id);
+                    return done(null, null);
+                }
                 done(null, user);
             }
         } catch (err) {
+            console.error('Deserialize user error:', err);
             done(err, null);
         }
     });
