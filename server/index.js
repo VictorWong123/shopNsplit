@@ -43,6 +43,11 @@ function dbConnect() {
     });
 }
 
+// Test route (always available)
+app.get('/api/test', (req, res) => {
+    res.json({ message: 'Server is running!' });
+});
+
 // --- Session store cache ---
 let mongoStorePromise;
 function getMongoStore() {
@@ -54,41 +59,51 @@ function getMongoStore() {
     return mongoStorePromise;
 }
 
-// Session middleware (registers synchronously, but store is a promise)
-getMongoStore().then(store => {
-    app.use(session({
-        secret: process.env.SESSION_SECRET,
-        resave: false,
-        saveUninitialized: false,
-        store,
-        cookie: {
-            maxAge: 1000 * 60 * 60 * 24, // 1 day
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-        },
-    }));
+// Initialize session and routes
+async function initializeApp() {
+    try {
+        const store = await getMongoStore();
 
-    // Passport config
-    require('./passportConfig')(passport);
-    app.use(passport.initialize());
-    app.use(passport.session());
+        app.use(session({
+            secret: process.env.SESSION_SECRET,
+            resave: false,
+            saveUninitialized: false,
+            store,
+            cookie: {
+                maxAge: 1000 * 60 * 60 * 24, // 1 day
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+            },
+        }));
 
-    // Auth and receipts routes
-    app.use('/api/auth', require('./routes/auth'));
-    app.use('/api/receipts', require('./routes/receipts'));
-});
+        // Passport config
+        require('./passportConfig')(passport);
+        app.use(passport.initialize());
+        app.use(passport.session());
 
-// Test route (always available)
-app.get('/api/test', (req, res) => {
-    res.json({ message: 'Server is running!' });
-});
+        // Auth and receipts routes
+        app.use('/api/auth', require('./routes/auth'));
+        app.use('/api/receipts', require('./routes/receipts'));
+
+        console.log('Session and routes initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize session and routes:', error);
+    }
+}
+
+// Initialize the app
+initializeApp();
 
 // Serve static files from React build (for single service deployment)
 if (process.env.NODE_ENV === 'production') {
     const path = require('path');
     app.use(express.static(path.join(__dirname, '../build')));
 
-    app.get('*', (req, res) => {
+    // Handle React Router - serve index.html for all non-API routes
+    app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api/')) {
+            return next();
+        }
         res.sendFile(path.join(__dirname, '../build', 'index.html'));
     });
 }

@@ -7,7 +7,6 @@ const router = express.Router();
 
 // Register
 router.post('/register', async (req, res) => {
-    console.log('Register request received:', req.body);
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ message: 'All fields required.' });
     try {
@@ -21,7 +20,6 @@ router.post('/register', async (req, res) => {
                 console.error('Login after register error:', err);
                 return res.status(500).json({ message: 'Login after register failed.' });
             }
-            console.log('User registered and logged in:', user.username);
             res.json({ user: { id: user._id, username: user.username } });
         });
     } catch (err) {
@@ -32,14 +30,12 @@ router.post('/register', async (req, res) => {
 
 // Login
 router.post('/login', (req, res, next) => {
-    console.log('Login request received:', req.body);
     passport.authenticate('local', (err, user, info) => {
         if (err) {
             console.error('Login authentication error:', err);
             return res.status(500).json({ message: 'Server error.' });
         }
         if (!user) {
-            console.log('Login failed:', info.message);
             return res.status(400).json({ message: info.message });
         }
         req.login(user, err => {
@@ -47,7 +43,6 @@ router.post('/login', (req, res, next) => {
                 console.error('Login session error:', err);
                 return res.status(500).json({ message: 'Login failed.' });
             }
-            console.log('User logged in:', user.username);
             res.json({ user: { id: user._id, username: user.username } });
         });
     })(req, res, next);
