@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PrimaryButton from './PrimaryButton';
 import PageHeader from './PageHeader';
 import ShareButton from './ShareButton';
-import { receipts, auth } from '../supabaseClient';
+import { receipts as receiptsApi, auth } from '../supabaseClient';
 
 const ReceiptsPage = ({ onBack }) => {
     const [receipts, setReceipts] = useState([]);
@@ -33,13 +33,13 @@ const ReceiptsPage = ({ onBack }) => {
 
             const user = result.data.user;
             console.log('Fetching receipts for user:', user.id);
-            const { data, error } = await receipts.getUserReceipts(user.id);
+            const { data, error } = await receiptsApi.getUserReceipts(user.id);
 
             if (error) {
                 console.error('Error in fetchReceipts:', error);
 
                 // Test database connection to help debug
-                const testResult = await receipts.testDatabaseConnection();
+                const testResult = await receiptsApi.testDatabaseConnection();
                 console.log('Database test result:', testResult);
 
                 setError(`Failed to fetch receipts: ${error.message || 'Unknown error'}`);
@@ -79,7 +79,7 @@ const ReceiptsPage = ({ onBack }) => {
             }
 
             const user = result.data.user;
-            const { data, error } = await receipts.updateReceiptName(receiptId, editName, user.id);
+            const { data, error } = await receiptsApi.updateReceiptName(receiptId, editName, user.id);
 
             if (error) {
                 console.error('Error updating receipt name:', error);
@@ -118,7 +118,7 @@ const ReceiptsPage = ({ onBack }) => {
             }
 
             const user = result.data.user;
-            const { error } = await receipts.deleteReceipt(receiptToDelete.id, user.id);
+            const { error } = await receiptsApi.deleteReceipt(receiptToDelete.id, user.id);
 
             if (error) {
                 alert('Failed to delete receipt');
