@@ -52,8 +52,25 @@ export const auth = {
 
     // Get current user
     getCurrentUser: async () => {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        return { user, error };
+        try {
+            const { data, error } = await supabase.auth.getUser();
+
+            if (error) {
+                console.error('Error getting current user:', error);
+                return { data: { user: null }, error };
+            }
+
+            if (!data || !data.user) {
+                console.log('No user found in session');
+                return { data: { user: null }, error: null };
+            }
+
+            console.log('Current user retrieved:', data.user.id);
+            return { data: { user: data.user }, error: null };
+        } catch (error) {
+            console.error('Exception getting current user:', error);
+            return { data: { user: null }, error };
+        }
     },
 
     // Listen to auth changes

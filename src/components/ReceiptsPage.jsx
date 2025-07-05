@@ -21,13 +21,17 @@ const ReceiptsPage = ({ onBack }) => {
 
     const fetchReceipts = async () => {
         try {
-            const { data: { user } } = await auth.getCurrentUser();
-            if (!user) {
-                setError('Not authenticated');
+            const result = await auth.getCurrentUser();
+            console.log('getCurrentUser result:', result);
+
+            if (!result || !result.data || !result.data.user) {
+                console.log('No authenticated user found');
+                setError('Not authenticated. Please sign in again.');
                 setLoading(false);
                 return;
             }
 
+            const user = result.data.user;
             console.log('Fetching receipts for user:', user.id);
             const { data, error } = await receipts.getUserReceipts(user.id);
 
@@ -68,9 +72,13 @@ const ReceiptsPage = ({ onBack }) => {
 
     const handleSaveName = async (receiptId) => {
         try {
-            const { data: { user } } = await auth.getCurrentUser();
-            if (!user) return;
+            const result = await auth.getCurrentUser();
+            if (!result || !result.data || !result.data.user) {
+                console.error('No authenticated user found for updating receipt name');
+                return;
+            }
 
+            const user = result.data.user;
             const { data, error } = await receipts.updateReceiptName(receiptId, editName, user.id);
 
             if (error) {
@@ -102,9 +110,14 @@ const ReceiptsPage = ({ onBack }) => {
 
         setDeletingReceipt(receiptToDelete.id);
         try {
-            const { data: { user } } = await auth.getCurrentUser();
-            if (!user) return;
+            const result = await auth.getCurrentUser();
+            if (!result || !result.data || !result.data.user) {
+                console.error('No authenticated user found for deleting receipt');
+                alert('Authentication error. Please sign in again.');
+                return;
+            }
 
+            const user = result.data.user;
             const { error } = await receipts.deleteReceipt(receiptToDelete.id, user.id);
 
             if (error) {
