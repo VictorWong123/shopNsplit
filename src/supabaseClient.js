@@ -72,41 +72,70 @@ export const auth = {
 export const receipts = {
     // Get user's receipts
     getUserReceipts: async (userId) => {
-        const { data, error } = await supabase
-            .from('receipts')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false });
-        return { data, error };
+        try {
+            console.log('Fetching receipts for user:', userId);
+
+            const { data, error } = await supabase
+                .from('receipts')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error fetching receipts:', error);
+                return { data: [], error };
+            }
+
+            console.log('Receipts fetched successfully:', data);
+            return { data: data || [], error: null };
+        } catch (error) {
+            console.error('Exception in getUserReceipts:', error);
+            return { data: [], error };
+        }
     },
 
     // Save a receipt
     saveReceipt: async (receiptData, userId) => {
-        // Check for duplicates first
-        const existingReceipt = await supabase
-            .from('receipts')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('data', JSON.stringify(receiptData))
-            .single();
+        try {
+            console.log('Saving receipt for user:', userId);
+            console.log('Receipt data:', receiptData);
 
-        if (existingReceipt.data) {
-            return { data: existingReceipt.data, message: 'Already saved' };
+            // Check for duplicates first
+            const existingReceipt = await supabase
+                .from('receipts')
+                .select('id')
+                .eq('user_id', userId)
+                .eq('data', JSON.stringify(receiptData))
+                .single();
+
+            if (existingReceipt.data) {
+                console.log('Receipt already exists');
+                return { data: existingReceipt.data, message: 'Already saved' };
+            }
+
+            const { data, error } = await supabase
+                .from('receipts')
+                .insert([
+                    {
+                        user_id: userId,
+                        data: receiptData,
+                        name: receiptData.name || new Date().toLocaleString()
+                    }
+                ])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error saving receipt:', error);
+                return { error };
+            }
+
+            console.log('Receipt saved successfully:', data);
+            return { data };
+        } catch (error) {
+            console.error('Exception in saveReceipt:', error);
+            return { error };
         }
-
-        const { data, error } = await supabase
-            .from('receipts')
-            .insert([
-                {
-                    user_id: userId,
-                    data: receiptData,
-                    name: receiptData.name || new Date().toLocaleString()
-                }
-            ])
-            .select()
-            .single();
-
-        return { data, error };
     },
 
     // Get a specific receipt
@@ -146,27 +175,55 @@ export const receipts = {
 export const users = {
     // Create or update user profile
     upsertUser: async (userId, userData) => {
-        const { data, error } = await supabase
-            .from('users')
-            .upsert([
-                {
-                    id: userId,
-                    username: userData.username,
-                    email: userData.email
-                }
-            ])
-            .select()
-            .single();
-        return { data, error };
+        try {
+            console.log('Upserting user profile:', userId, userData);
+
+            const { data, error } = await supabase
+                .from('users')
+                .upsert([
+                    {
+                        id: userId,
+                        username: userData.username,
+                        email: userData.email
+                    }
+                ])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error upserting user:', error);
+                return { data: null, error };
+            }
+
+            console.log('User profile upserted successfully:', data);
+            return { data, error: null };
+        } catch (error) {
+            console.error('Exception in upsertUser:', error);
+            return { data: null, error };
+        }
     },
 
     // Get user profile
     getUserProfile: async (userId) => {
-        const { data, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', userId)
-            .single();
-        return { data, error };
+        try {
+            console.log('Fetching user profile:', userId);
+
+            const { data, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', userId)
+                .single();
+
+            if (error) {
+                console.error('Error fetching user profile:', error);
+                return { data: null, error };
+            }
+
+            console.log('User profile fetched successfully:', data);
+            return { data, error: null };
+        } catch (error) {
+            console.error('Exception in getUserProfile:', error);
+            return { data: null, error };
+        }
     }
 }; 

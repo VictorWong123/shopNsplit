@@ -81,20 +81,41 @@ function App() {
 
     const checkAuthStatus = async () => {
         try {
+            console.log('Checking auth status...');
             const { user, error } = await auth.getCurrentUser();
+
             if (error) {
                 console.error('Auth check failed:', error);
                 return;
             }
 
             if (user) {
+                console.log('User found:', user.id);
                 // Get user profile from our users table
-                const { data: userProfile } = await users.getUserProfile(user.id);
+                const { data: userProfile, error: profileError } = await users.getUserProfile(user.id);
+
+                if (profileError) {
+                    console.error('Error fetching user profile:', profileError);
+                    // Try to create user profile if it doesn't exist
+                    const { data: newProfile, error: createError } = await users.upsertUser(user.id, {
+                        username: user.email.split('@')[0],
+                        email: user.email
+                    });
+
+                    if (createError) {
+                        console.error('Error creating user profile:', createError);
+                    } else {
+                        console.log('User profile created:', newProfile);
+                    }
+                }
+
                 setUser({
                     id: user.id,
                     email: user.email,
-                    username: userProfile?.username || user.user_metadata?.username || user.email.split('@')[0]
+                    username: userProfile?.username || user.email.split('@')[0]
                 });
+            } else {
+                console.log('No user found');
             }
         } catch (error) {
             console.error('Auth check failed:', error);
@@ -120,9 +141,15 @@ function App() {
     };
 
     const handleSaveReceipt = async () => {
-        if (!user) return;
+        if (!user) {
+            console.error('No user found when trying to save receipt');
+            setNotification({ message: 'Please sign in to save receipts', type: 'error' });
+            return;
+        }
 
+        console.log('Starting to save receipt for user:', user.id);
         setSavingReceipt(true);
+
         try {
             // Calculate all totals using utility functions
             const { everyoneTotal, groupsTotal, personalTotal, grandTotal, personTotals } = calculateAllTotals(names, everyoneItems, splitGroupsItems, personalItems);
@@ -148,10 +175,16 @@ function App() {
                 })
             };
 
+            console.log('Calling saveReceipt with data:', receiptData);
             const result = await receipts.saveReceipt(receiptData, user.id);
+            console.log('Save receipt result:', result);
 
             if (result.error) {
-                setNotification({ message: 'Failed to save receipt', type: 'error' });
+                console.error('Error saving receipt:', result.error);
+                setNotification({
+                    message: `Failed to save receipt: ${result.error.message || 'Unknown error'}`,
+                    type: 'error'
+                });
             } else if (result.message === 'Already saved') {
                 setNotification({ message: 'Already saved', type: 'info' });
                 setReceiptSaved(true);
@@ -160,7 +193,11 @@ function App() {
                 setReceiptSaved(true);
             }
         } catch (error) {
-            setNotification({ message: 'Error saving receipt', type: 'error' });
+            console.error('Exception in handleSaveReceipt:', error);
+            setNotification({
+                message: `Error saving receipt: ${error.message || 'Unknown error'}`,
+                type: 'error'
+            });
         } finally {
             setSavingReceipt(false);
         }
