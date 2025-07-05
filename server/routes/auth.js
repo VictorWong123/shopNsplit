@@ -16,48 +16,63 @@ const ensureSessionReady = (req, res, next) => {
 
 // Register
 router.post('/register', ensureSessionReady, async (req, res) => {
+    console.log('Register request received:', {
+        body: req.body,
+        session: !!req.session,
+        environment: process.env.NODE_ENV
+    });
+
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ message: 'All fields required.' });
 
     try {
-        if (process.env.NODE_ENV === 'production') {
+        if (process.env.NODE_ENV === 'production' && process.env.MONGODB_URI) {
+            console.log('Using MongoDB for user registration...');
             // Use MongoDB in production
             const existingUser = await User.findOne({ username });
             if (existingUser) {
+                console.log('Username already exists:', username);
                 return res.status(400).json({ message: 'Username already exists.' });
             }
 
             const hash = await bcrypt.hash(password, 10);
             const user = new User({ username, password: hash });
             await user.save();
+            console.log('User saved to MongoDB:', user._id);
 
             req.login(user, err => {
                 if (err) {
                     console.error('Login after register error:', err);
                     return res.status(500).json({ message: 'Login after register failed.' });
                 }
+                console.log('User logged in after registration');
                 res.json({ user: { id: user._id, username: user.username } });
             });
         } else {
-            // Use in-memory storage for development
+            console.log('Using in-memory storage for user registration...');
+            // Use in-memory storage for development or production fallback
             if (userStorage.getUser(username)) {
+                console.log('Username already exists in memory:', username);
                 return res.status(400).json({ message: 'Username already exists.' });
             }
 
             const hash = await bcrypt.hash(password, 10);
             const user = { id: Date.now().toString(), username, password: hash };
             userStorage.addUser(username, user);
+            console.log('User added to memory storage:', user.id);
 
             req.login(user, err => {
                 if (err) {
                     console.error('Login after register error:', err);
                     return res.status(500).json({ message: 'Login after register failed.' });
                 }
+                console.log('User logged in after registration');
                 res.json({ user: { id: user.id, username: user.username } });
             });
         }
     } catch (err) {
         console.error('Register error:', err);
+        console.error('Error stack:', err.stack);
         res.status(500).json({ message: 'Server error.' });
     }
 });

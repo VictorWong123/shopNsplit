@@ -7,7 +7,7 @@ module.exports = function (passport) {
     passport.use(
         new LocalStrategy(async (username, password, done) => {
             try {
-                if (process.env.NODE_ENV === 'production') {
+                if (process.env.NODE_ENV === 'production' && process.env.MONGODB_URI) {
                     // Use MongoDB in production
                     const user = await User.findOne({ username });
                     if (!user) return done(null, false, { message: 'Invalid username or password.' });
@@ -15,7 +15,7 @@ module.exports = function (passport) {
                     if (!isMatch) return done(null, false, { message: 'Invalid username or password.' });
                     return done(null, user);
                 } else {
-                    // Use in-memory users for development
+                    // Use in-memory users for development or production fallback
                     const user = userStorage.getUser(username);
                     if (!user) return done(null, false, { message: 'Invalid username or password.' });
                     const isMatch = await bcrypt.compare(password, user.password);
@@ -34,7 +34,7 @@ module.exports = function (passport) {
 
     passport.deserializeUser(async (id, done) => {
         try {
-            if (process.env.NODE_ENV === 'production') {
+            if (process.env.NODE_ENV === 'production' && process.env.MONGODB_URI) {
                 // Find user in MongoDB
                 const user = await User.findById(id);
                 done(null, user);
