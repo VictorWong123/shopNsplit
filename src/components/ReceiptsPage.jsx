@@ -28,15 +28,24 @@ const ReceiptsPage = ({ onBack }) => {
                 return;
             }
 
+            console.log('Fetching receipts for user:', user.id);
             const { data, error } = await receipts.getUserReceipts(user.id);
 
             if (error) {
-                setError('Failed to fetch receipts');
+                console.error('Error in fetchReceipts:', error);
+
+                // Test database connection to help debug
+                const testResult = await receipts.testDatabaseConnection();
+                console.log('Database test result:', testResult);
+
+                setError(`Failed to fetch receipts: ${error.message || 'Unknown error'}`);
             } else {
+                console.log('Receipts fetched successfully:', data);
                 setReceipts(data || []);
             }
         } catch (error) {
-            setError('Network error');
+            console.error('Exception in fetchReceipts:', error);
+            setError(`Network error: ${error.message || 'Unknown error'}`);
         } finally {
             setLoading(false);
         }

@@ -78,6 +78,30 @@ export const auth = {
 
 // Helper functions for receipts
 export const receipts = {
+    // Test function to check database structure
+    testDatabaseConnection: async () => {
+        try {
+            console.log('Testing database connection...');
+
+            // Try to select from receipts table
+            const { data, error } = await supabase
+                .from('receipts')
+                .select('id, owner_id, title, total_amount, created_at')
+                .limit(1);
+
+            if (error) {
+                console.error('Database connection test failed:', error);
+                return { success: false, error };
+            }
+
+            console.log('Database connection test successful');
+            return { success: true, data };
+        } catch (error) {
+            console.error('Database connection test exception:', error);
+            return { success: false, error };
+        }
+    },
+
     // Get user's receipts
     getUserReceipts: async (userId) => {
         try {
@@ -91,6 +115,12 @@ export const receipts = {
 
             if (error) {
                 console.error('Error fetching receipts:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint,
+                    code: error.code
+                });
                 return { data: [], error };
             }
 
@@ -98,6 +128,7 @@ export const receipts = {
             return { data: data || [], error: null };
         } catch (error) {
             console.error('Exception in getUserReceipts:', error);
+            console.error('Exception details:', error.message, error.stack);
             return { data: [], error };
         }
     },
