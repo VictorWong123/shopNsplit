@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ValidationMessage from './ValidationMessage';
 import PrimaryButton from './PrimaryButton';
-import API_BASE_URL from '../config';
+import { auth, users } from '../supabaseClient';
 
 const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMode }) => {
     const [formData, setFormData] = useState({
@@ -107,30 +107,47 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
         setIsLoading(true);
 
         try {
-            const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
-            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    username: formData.username,
-                    password: formData.password
-                })
-            });
+            if (mode === 'login') {
+                // Sign in with email (using username as email for now)
+                const { data, error } = await auth.signIn(formData.username, formData.password);
 
-            const data = await response.json();
-
-            if (response.ok) {
-                onAuthSuccess(data.user);
-                onClose();
+                if (error) {
+                    if (error.message.includes('Invalid login credentials')) {
+                        setMessage('Incorrect username or password');
+                    } else {
+                        setMessage(error.message);
+                    }
+                } else if (data.user) {
+                    // Get user profile
+                    const { data: userProfile } = await users.getUserProfile(data.user.id);
+                    const user = {
+                        id: data.user.id,
+                        email: data.user.email,
+                        username: userProfile?.username || data.user.user_metadata?.username || data.user.email.split('@')[0]
+                    };
+                    onAuthSuccess(user);
+                    onClose();
+                }
             } else {
-                // Show generic error message for security
-                if (mode === 'login' && data.message && data.message.includes('Invalid username or password')) {
-                    setMessage('Incorrect password or username');
-                } else {
-                    setMessage(data.message || 'An error occurred');
+                // Register new user
+                const { data, error } = await auth.signUp(formData.username, formData.password, formData.username);
+
+                if (error) {
+                    setMessage(error.message);
+                } else if (data.user) {
+                    // Create user profile
+                    await users.upsertUser(data.user.id, {
+                        username: formData.username,
+                        email: formData.username // Using username as email
+                    });
+
+                    const user = {
+                        id: data.user.id,
+                        email: data.user.email,
+                        username: formData.username
+                    };
+                    onAuthSuccess(user);
+                    onClose();
                 }
             }
         } catch (error) {

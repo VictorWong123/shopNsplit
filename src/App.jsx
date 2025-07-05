@@ -9,7 +9,7 @@ import SharedReceiptPage from './components/SharedReceiptPage';
 import AuthModal from './components/AuthModal';
 import UserMenu from './components/UserMenu';
 import Notification from './components/Notification';
-import API_BASE_URL from './config';
+import { auth, receipts, users } from './supabaseClient';
 import { calculateAllTotals } from './components/PriceCalculator';
 
 function App() {
@@ -25,6 +25,7 @@ function App() {
     const [user, setUser] = useState(null);
     const [authModal, setAuthModal] = useState({ isOpen: false, mode: 'login' });
     const [savingReceipt, setSavingReceipt] = useState(false);
+    const [receiptSaved, setReceiptSaved] = useState(false);
     const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
     const [pendingNavigation, setPendingNavigation] = useState(null);
 
@@ -62,22 +63,23 @@ function App() {
 
     const checkAuthStatus = async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-                credentials: 'include'
-            });
-
-            if (!response.ok) {
-                // If not authenticated, that's fine - user will need to log in
+            const { user, error } = await auth.getCurrentUser();
+            if (error) {
+                console.error('Auth check failed:', error);
                 return;
             }
 
-            const data = await response.json();
-            if (data.user) {
-                setUser(data.user);
+            if (user) {
+                // Get user profile from our users table
+                const { data: userProfile } = await users.getUserProfile(user.id);
+                setUser({
+                    id: user.id,
+                    email: user.email,
+                    username: userProfile?.username || user.user_metadata?.username || user.email.split('@')[0]
+                });
             }
         } catch (error) {
             console.error('Auth check failed:', error);
-            // Don't throw error - just log it and continue
         }
     };
 
@@ -90,8 +92,13 @@ function App() {
         setAuthModal({ isOpen: true, mode: newMode });
     };
 
-    const handleLogout = () => {
-        setUser(null);
+    const handleLogout = async () => {
+        try {
+            await auth.signOut();
+            setUser(null);
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
     };
 
     const handleSaveReceipt = async () => {
@@ -113,34 +120,26 @@ function App() {
                     personalTotal,
                     grandTotal,
                     personTotals
-                }
+                },
+                name: new Date().toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })
             };
 
-            // Generate default name based on current date/time
-            const defaultName = new Date().toLocaleString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            const result = await receipts.saveReceipt(receiptData, user.id);
 
-            const response = await fetch(`${API_BASE_URL}/api/receipts`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    data: receiptData,
-                    name: defaultName
-                })
-            });
-
-            if (response.ok) {
-                setNotification({ message: 'Receipt saved successfully!', type: 'success' });
-            } else {
+            if (result.error) {
                 setNotification({ message: 'Failed to save receipt', type: 'error' });
+            } else if (result.message === 'Already saved') {
+                setNotification({ message: 'Already saved', type: 'info' });
+                setReceiptSaved(true);
+            } else {
+                setNotification({ message: 'Receipt saved successfully!', type: 'success' });
+                setReceiptSaved(true);
             }
         } catch (error) {
             setNotification({ message: 'Error saving receipt', type: 'error' });
@@ -155,6 +154,7 @@ function App() {
 
     const handleBackToSetup = () => {
         setCurrentPage('setup');
+        setReceiptSaved(false); // Reset saved state when starting over
     };
 
     const handleNextToSplitGroups = () => {
@@ -169,6 +169,7 @@ function App() {
     const handleNextToReceipt = (personal) => {
         setPersonalItems(personal);
         setCurrentPage('receipt');
+        setReceiptSaved(false); // Reset saved state for new receipt
     };
 
     const handleBackToSplitGroups = () => {
@@ -177,6 +178,16 @@ function App() {
 
     const handleBackToPersonalItems = () => {
         setCurrentPage('personal');
+    };
+
+    const handleStartNewReceipt = () => {
+        setCurrentPage('setup');
+        setReceiptSaved(false);
+        setNames([]);
+        setEveryoneItems([{ name: '', price: '' }]);
+        setSplitGroupsItems([]);
+        setPersonalItems([]);
+        setNumPeople('');
     };
 
     const handleHeaderNavigation = (page) => {
@@ -340,6 +351,9 @@ function App() {
                         personalItems={personalItems}
                         user={user}
                         onSaveReceipt={handleSaveReceipt}
+                        receiptSaved={receiptSaved}
+                        savingReceipt={savingReceipt}
+                        onStartNewReceipt={handleStartNewReceipt}
                     />
                 )}
                 {currentPage === 'personal' && (

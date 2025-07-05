@@ -1,22 +1,10 @@
 import React, { useState } from 'react';
-import PrimaryButton from './PrimaryButton';
 
 const UserMenu = ({ user, onLogout, onViewReceipts }) => {
     const [isOpen, setIsOpen] = useState(false);
 
-    const handleLogout = async () => {
-        try {
-            const response = await fetch('http://localhost:5001/api/auth/logout', {
-                method: 'POST',
-                credentials: 'include'
-            });
-
-            if (response.ok) {
-                onLogout();
-            }
-        } catch (error) {
-            console.error('Logout error:', error);
-        }
+    const handleLogout = () => {
+        onLogout();
     };
 
     return (

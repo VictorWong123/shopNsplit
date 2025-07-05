@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import GroceryItemForm from './GroceryItemForm';
 import ParticipantSelector from './ParticipantSelector';
 import PageHeader from './PageHeader';
@@ -42,7 +42,7 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], groups, setGroups,
         });
     };
 
-    const getSaveButtonTooltip = () => {
+    const getSaveButtonTooltip = useCallback(() => {
         if (selectedPeople.length === 0) {
             return 'Select at least one person for the group';
         }
@@ -64,7 +64,7 @@ function SplitGroupsPage({ names, onBack, everyoneItems = [], groups, setGroups,
         }
 
         return 'Save this group';
-    };
+    }, [selectedPeople, isDuplicateGroup]);
 
     const canSaveGroup = () => {
         // Check if participants are selected

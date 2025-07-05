@@ -4,7 +4,7 @@ import SummaryCard from './SummaryCard';
 import PrimaryButton from './PrimaryButton';
 import { calculateEveryoneTotal, calculateGroupsTotal, calculatePersonalTotal, calculatePersonTotal } from './PriceCalculator';
 
-function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], personalItems = [], onBack, user, onSaveReceipt }) {
+function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], personalItems = [], onBack, user, onSaveReceipt, receiptSaved = false, savingReceipt = false, onStartNewReceipt }) {
     // Calculate totals using utility functions
     const everyoneTotal = calculateEveryoneTotal(everyoneItems);
     const groupsTotal = calculateGroupsTotal(splitGroupsItems);
@@ -89,7 +89,7 @@ function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], persona
                         </button>
                         <span className="text-gray-300">|</span>
                         <button
-                            onClick={() => window.location.reload()}
+                            onClick={onStartNewReceipt}
                             className="flex items-center space-x-2 text-teal-600 hover:text-teal-700 font-medium transition-colors"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,6 +120,7 @@ function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], persona
                                 {user && (
                                     <PrimaryButton
                                         onClick={onSaveReceipt}
+                                        disabled={receiptSaved || savingReceipt}
                                         showIcon
                                         icon={
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -127,7 +128,7 @@ function ReceiptPage({ names, everyoneItems = [], splitGroupsItems = [], persona
                                             </svg>
                                         }
                                     >
-                                        Save Receipt
+                                        {receiptSaved ? 'Already Saved' : savingReceipt ? 'Saving...' : 'Save Receipt'}
                                     </PrimaryButton>
                                 )}
                                 <PrimaryButton

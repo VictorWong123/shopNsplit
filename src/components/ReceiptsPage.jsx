@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PrimaryButton from './PrimaryButton';
 import PageHeader from './PageHeader';
 import ShareButton from './ShareButton';
-import API_BASE_URL from '../config';
+import { receipts, auth } from '../supabaseClient';
 
 const ReceiptsPage = ({ onBack }) => {
     const [receipts, setReceipts] = useState([]);
@@ -21,15 +21,19 @@ const ReceiptsPage = ({ onBack }) => {
 
     const fetchReceipts = async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/receipts`, {
-                credentials: 'include'
-            });
+            const { data: { user } } = await auth.getCurrentUser();
+            if (!user) {
+                setError('Not authenticated');
+                setLoading(false);
+                return;
+            }
 
-            if (response.ok) {
-                const data = await response.json();
-                setReceipts(data.receipts);
-            } else {
+            const { data, error } = await receipts.getUserReceipts(user.id);
+
+            if (error) {
                 setError('Failed to fetch receipts');
+            } else {
+                setReceipts(data || []);
             }
         } catch (error) {
             setError('Network error');
@@ -49,25 +53,22 @@ const ReceiptsPage = ({ onBack }) => {
     };
 
     const handleEditName = (receipt) => {
-        setEditingName(receipt._id);
+        setEditingName(receipt.id);
         setEditName(receipt.name || '');
     };
 
     const handleSaveName = async (receiptId) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/receipts/${receiptId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                body: JSON.stringify({ name: editName })
-            });
+            const { data: { user } } = await auth.getCurrentUser();
+            if (!user) return;
 
-            if (response.ok) {
-                const updatedReceipt = await response.json();
+            const { data, error } = await receipts.updateReceiptName(receiptId, editName, user.id);
+
+            if (error) {
+                console.error('Error updating receipt name:', error);
+            } else {
                 setReceipts(prev => prev.map(r =>
-                    r._id === receiptId ? updatedReceipt.receipt : r
+                    r.id === receiptId ? data : r
                 ));
                 setEditingName(null);
                 setEditName('');
@@ -90,19 +91,19 @@ const ReceiptsPage = ({ onBack }) => {
     const confirmDelete = async () => {
         if (!receiptToDelete) return;
 
-        setDeletingReceipt(receiptToDelete._id);
+        setDeletingReceipt(receiptToDelete.id);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/receipts/${receiptToDelete._id}`, {
-                method: 'DELETE',
-                credentials: 'include'
-            });
+            const { data: { user } } = await auth.getCurrentUser();
+            if (!user) return;
 
-            if (response.ok) {
-                setReceipts(prev => prev.filter(r => r._id !== receiptToDelete._id));
+            const { error } = await receipts.deleteReceipt(receiptToDelete.id, user.id);
+
+            if (error) {
+                alert('Failed to delete receipt');
+            } else {
+                setReceipts(prev => prev.filter(r => r.id !== receiptToDelete.id));
                 // Always clear selectedReceipt after delete
                 setSelectedReceipt(null);
-            } else {
-                alert('Failed to delete receipt');
             }
         } catch (error) {
             alert('Error deleting receipt');
@@ -201,15 +202,15 @@ const ReceiptsPage = ({ onBack }) => {
                     </button>
                     <div className="flex space-x-2">
                         <ShareButton
-                            receiptId={selectedReceipt._id}
+                            receiptId={selectedReceipt.id}
                             receiptName={selectedReceipt.name || `Receipt from ${formatDate(selectedReceipt.createdAt)}`}
                         />
                         <button
                             onClick={() => handleDeleteReceipt(selectedReceipt)}
-                            disabled={deletingReceipt === selectedReceipt._id}
+                            disabled={deletingReceipt === selectedReceipt.id}
                             className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
                         >
-                            {deletingReceipt === selectedReceipt._id ? 'Deleting...' : 'Delete Receipt'}
+                            {deletingReceipt === selectedReceipt.id ? 'Deleting...' : 'Delete Receipt'}
                         </button>
                         <button
                             onClick={() => window.print()}
@@ -354,10 +355,10 @@ const ReceiptsPage = ({ onBack }) => {
                                 </button>
                                 <button
                                     onClick={confirmDelete}
-                                    disabled={deletingReceipt === receiptToDelete._id}
+                                    disabled={deletingReceipt === receiptToDelete.id}
                                     className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
                                 >
-                                    {deletingReceipt === receiptToDelete._id ? 'Deleting...' : 'Yes, Delete'}
+                                    {deletingReceipt === receiptToDelete.id ? 'Deleting...' : 'Yes, Delete'}
                                 </button>
                             </div>
                         </div>
@@ -385,13 +386,13 @@ const ReceiptsPage = ({ onBack }) => {
                 <div className="space-y-4">
                     {receipts.map((receipt) => (
                         <div
-                            key={receipt._id}
+                            key={receipt.id}
                             onClick={() => setSelectedReceipt(receipt)}
                             className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
                         >
                             <div className="flex justify-between items-start">
                                 <div className="flex-1">
-                                    {editingName === receipt._id ? (
+                                    {editingName === receipt.id ? (
                                         <div
                                             className="flex items-center space-x-2"
                                             onClick={(e) => e.stopPropagation()}
@@ -407,7 +408,7 @@ const ReceiptsPage = ({ onBack }) => {
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    handleSaveName(receipt._id);
+                                                    handleSaveName(receipt.id);
                                                 }}
                                                 className="text-teal-600 hover:text-teal-700 text-sm font-medium"
                                             >
@@ -461,7 +462,7 @@ const ReceiptsPage = ({ onBack }) => {
                                         e.stopPropagation();
                                         handleDeleteReceipt(receipt);
                                     }}
-                                    disabled={deletingReceipt === receipt._id}
+                                    disabled={deletingReceipt === receipt.id}
                                     className="text-red-400 hover:text-red-600 disabled:opacity-50 p-1 rounded hover:bg-red-50 transition-colors"
                                     title="Delete Receipt"
                                 >
@@ -500,10 +501,10 @@ const ReceiptsPage = ({ onBack }) => {
                             </button>
                             <button
                                 onClick={confirmDelete}
-                                disabled={deletingReceipt === receiptToDelete._id}
+                                disabled={deletingReceipt === receiptToDelete.id}
                                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
                             >
-                                {deletingReceipt === receiptToDelete._id ? 'Deleting...' : 'Yes, Delete'}
+                                {deletingReceipt === receiptToDelete.id ? 'Deleting...' : 'Yes, Delete'}
                             </button>
                         </div>
                     </div>

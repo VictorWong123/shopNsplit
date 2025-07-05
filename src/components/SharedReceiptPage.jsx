@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { calculateEveryoneTotal, calculateGroupsTotal, calculatePersonalTotal, calculatePersonTotal } from './PriceCalculator';
-import API_BASE_URL from '../config';
+import { receipts } from '../supabaseClient';
 
 function SharedReceiptPage({ receiptId }) {
     const [receipt, setReceipt] = useState(null);
@@ -9,13 +9,12 @@ function SharedReceiptPage({ receiptId }) {
 
     const fetchSharedReceipt = useCallback(async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/receipts/shared/${receiptId}`);
+            const { data, error } = await receipts.getReceipt(receiptId);
 
-            if (response.ok) {
-                const data = await response.json();
-                setReceipt(data.receipt);
-            } else {
+            if (error) {
                 setError('Receipt not found or no longer available');
+            } else {
+                setReceipt(data);
             }
         } catch (error) {
             setError('Failed to load receipt');

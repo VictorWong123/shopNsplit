@@ -1,11 +1,10 @@
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 const session = require('express-session');
-const MongoStore = require('connect-mongo');
 const passport = require('passport');
 const cors = require('cors');
 const path = require('path');
+const { setupDatabase } = require('./supabase');
 
 const app = express();
 
@@ -13,7 +12,8 @@ const app = express();
 console.log('Environment check:', {
     NODE_ENV: process.env.NODE_ENV,
     PORT: process.env.PORT,
-    MONGODB_URI: process.env.MONGODB_URI ? 'SET' : 'NOT SET',
+    SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'NOT SET',
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'NOT SET',
     SESSION_SECRET: process.env.SESSION_SECRET ? 'SET' : 'NOT SET'
 });
 
@@ -24,7 +24,13 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // CORS configuration
 app.use(cors({
     origin: process.env.NODE_ENV === 'production'
-        ? ['https://shopnsplit.onrender.com', 'https://shopnsplit.vercel.app']
+        ? [
+            'https://shopnsplit.vercel.app',
+            'https://shopnsplit-git-main.vercel.app',
+            'https://shopnsplit-git-develop.vercel.app',
+            'https://shopnsplit-backend.onrender.com',
+            process.env.FRONTEND_URL
+        ].filter(Boolean)
         : 'http://localhost:3000',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -64,28 +70,14 @@ app.post('/api/test-register', (req, res) => {
     });
 });
 
-// MongoDB connection test route
+// Database test route
 app.get('/api/test-db', async (req, res) => {
     try {
-        if (process.env.NODE_ENV === 'production') {
-            const connection = await dbConnect();
-            if (connection) {
-                res.json({
-                    message: 'MongoDB connection successful',
-                    status: 'connected'
-                });
-            } else {
-                res.status(500).json({
-                    message: 'MongoDB connection failed',
-                    status: 'failed'
-                });
-            }
-        } else {
-            res.json({
-                message: 'Development mode - using in-memory storage',
-                status: 'development'
-            });
-        }
+        await setupDatabase();
+        res.json({
+            message: 'Supabase connection successful',
+            status: 'connected'
+        });
     } catch (error) {
         console.error('Database test error:', error);
         res.status(500).json({
@@ -104,122 +96,23 @@ app.get('/api/auth-test', (req, res) => {
     });
 });
 
-// --- Mongoose connection cache ---
-let cached = global.mongoose;
-if (!cached) {
-    cached = global.mongoose = { conn: null, promise: null };
-}
-function dbConnect() {
-    if (cached.conn) {
-        return Promise.resolve(cached.conn);
-    }
-    if (!cached.promise) {
-        // Use a default MongoDB URI if none is provided
-        const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/shopnsplit';
-        console.log('Attempting MongoDB connection to:', mongoUri);
-        cached.promise = mongoose.connect(mongoUri, {
-            maxPoolSize: 10,
-            serverSelectionTimeoutMS: 5000,
-            socketTimeoutMS: 45000,
-        }).then((mongoose) => {
-            console.log('MongoDB connected successfully');
-            return mongoose;
-        }).catch((error) => {
-            console.error('MongoDB connection failed:', error);
-            // Don't throw error, just log it
-            return null;
-        });
-    }
-    return cached.promise.then((conn) => {
-        cached.conn = conn;
-        return conn;
-    });
-}
+// Session setup
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'fallback-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        maxAge: 1000 * 60 * 60 * 24, // 1 day
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+    },
+}));
 
-// --- Session store cache ---
-let mongoStorePromise;
-function getMongoStore() {
-    if (!mongoStorePromise) {
-        mongoStorePromise = dbConnect().then(() => {
-            return MongoStore.create({
-                mongoUrl: process.env.MONGODB_URI,
-                ttl: 24 * 60 * 60 // 1 day
-            });
-        }).then((store) => {
-            console.log('MongoStore created successfully');
-            return store;
-        }).catch((error) => {
-            console.error('MongoStore creation failed:', error);
-            throw error;
-        });
-    }
-    return mongoStorePromise;
-}
-
-// Session and passport setup
-if (process.env.NODE_ENV === 'production') {
-    console.log('Setting up production session with MongoDB store...');
-    // Use MongoDB store for production - synchronous setup with fallback
-    try {
-        if (!process.env.MONGODB_URI) {
-            throw new Error('MONGODB_URI not set');
-        }
-
-        const store = MongoStore.create({
-            mongoUrl: process.env.MONGODB_URI,
-            ttl: 24 * 60 * 60 // 1 day
-        });
-        app.use(session({
-            secret: process.env.SESSION_SECRET || 'fallback-secret',
-            resave: false,
-            saveUninitialized: false,
-            store,
-            cookie: {
-                maxAge: 1000 * 60 * 60 * 24,
-                secure: true,
-                sameSite: 'none'
-            },
-        }));
-        require('./passportConfig')(passport);
-        app.use(passport.initialize());
-        app.use(passport.session());
-        console.log('Session and passport initialized successfully (production)');
-    } catch (err) {
-        console.error('Session/passport setup failed:', err);
-        console.log('Falling back to memory store for production...');
-        // Fallback to memory store if MongoDB store fails
-        app.use(session({
-            secret: process.env.SESSION_SECRET || 'fallback-secret',
-            resave: false,
-            saveUninitialized: false,
-            cookie: {
-                maxAge: 1000 * 60 * 60 * 24,
-                secure: true,
-                sameSite: 'none'
-            },
-        }));
-        require('./passportConfig')(passport);
-        app.use(passport.initialize());
-        app.use(passport.session());
-        console.log('Session and passport initialized with fallback (production)');
-    }
-} else {
-    // Use memory store for development (immediate availability)
-    app.use(session({
-        secret: process.env.SESSION_SECRET || 'fallback-secret',
-        resave: false,
-        saveUninitialized: false,
-        cookie: {
-            maxAge: 1000 * 60 * 60 * 24,
-            secure: false,
-            sameSite: 'lax'
-        },
-    }));
-    require('./passportConfig')(passport);
-    app.use(passport.initialize());
-    app.use(passport.session());
-    console.log('Session and passport initialized successfully (development)');
-}
+// Passport setup
+require('./passportConfig')(passport);
+app.use(passport.initialize());
+app.use(passport.session());
+console.log('Session and passport initialized successfully');
 
 // Register routes after session setup
 app.use('/api/auth', require('./routes/auth'));
@@ -266,14 +159,23 @@ console.log(`Starting server on port ${PORT} (PORT env: ${process.env.PORT || 'n
 console.log('All environment variables:', {
     NODE_ENV: process.env.NODE_ENV,
     PORT: process.env.PORT,
-    MONGODB_URI: process.env.MONGODB_URI ? 'SET' : 'NOT SET',
+    SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'NOT SET',
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'NOT SET',
     SESSION_SECRET: process.env.SESSION_SECRET ? 'SET' : 'NOT SET'
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`Server URL: http://localhost:${PORT}`);
-});
+// Initialize database and start server
+setupDatabase()
+    .then(() => {
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`Server running on port ${PORT}`);
+            console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`Server URL: http://localhost:${PORT}`);
+        });
+    })
+    .catch((error) => {
+        console.error('Failed to setup database:', error);
+        process.exit(1);
+    });
 
 module.exports = app; 
