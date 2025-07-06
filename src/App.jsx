@@ -140,6 +140,25 @@ function App() {
         setSavingReceipt(true);
 
         try {
+            // Ensure user profile exists before saving receipt
+            const { error: profileError } = await users.getUserProfile(user.id);
+
+            if (profileError) {
+                // Try to create user profile if it doesn't exist
+                const { error: createError } = await users.upsertUser(user.id, {
+                    username: user.email.split('@')[0],
+                    email: user.email
+                });
+
+                if (createError) {
+                    setNotification({
+                        message: `Failed to create user profile: ${createError.message || 'Unknown error'}`,
+                        type: 'error'
+                    });
+                    return;
+                }
+            }
+
             // Calculate all totals using utility functions
             const { everyoneTotal, groupsTotal, personalTotal, grandTotal, personTotals } = calculateAllTotals(names, everyoneItems, splitGroupsItems, personalItems);
 

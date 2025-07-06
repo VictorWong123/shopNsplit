@@ -170,6 +170,23 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                         email: data.user.email,
                         username: formData.email.split('@')[0]
                     };
+
+                    // Ensure user profile exists in the users table
+                    try {
+                        const { error: profileError } = await users.upsertUser(data.user.id, {
+                            username: formData.email.split('@')[0],
+                            email: data.user.email
+                        });
+
+                        if (profileError) {
+                            console.error('Profile creation error:', profileError);
+                            // Don't fail registration, but log the error
+                        }
+                    } catch (profileError) {
+                        // Silently handle profile creation errors
+                        console.log('Profile creation error:', profileError);
+                    }
+
                     onAuthSuccess(user);
                     onClose();
                 } else {
