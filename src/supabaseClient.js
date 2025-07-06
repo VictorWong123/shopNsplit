@@ -137,36 +137,39 @@ export const auth = {
                 return { error: authError };
             }
 
-            // Get the current session token
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
+            // Get the current user
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            if (userError || !user) {
                 return { error: { message: 'No active session found' } };
             }
 
-            // Call the server endpoint to delete the account
-            const serverUrl = process.env.NODE_ENV === 'production'
-                ? 'https://shop-nsplit.vercel.app'
-                : 'http://localhost:5001';
+            const userId = user.id;
 
+            // Delete user data from all tables
+            // Delete receipts first
+            const { error: receiptsError } = await supabase
+                .from('receipts')
+                .delete()
+                .eq('owner_id', userId);
 
-
-            const response = await fetch(`${serverUrl}/api/supabase-auth/delete-account`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`
-                }
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                return { error: { message: result.message || 'Failed to delete account' } };
+            if (receiptsError) {
+                return { error: { message: 'Failed to delete receipts' } };
             }
 
-            // Sign out after successful deletion
+            // Delete user profile
+            const { error: profileError } = await supabase
+                .from('users')
+                .delete()
+                .eq('id', userId);
+
+            if (profileError) {
+                return { error: { message: 'Failed to delete user profile' } };
+            }
+
+            // Sign out the user
             await supabase.auth.signOut();
-            return { data: result, error: null };
+
+            return { data: { message: 'Account data deleted successfully' }, error: null };
         } catch (error) {
             return { error: { message: 'Failed to delete account. Please try again.' } };
         }
