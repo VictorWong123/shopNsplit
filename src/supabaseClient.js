@@ -3,8 +3,17 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
+// Log environment info for debugging (only in development)
+if (process.env.NODE_ENV === 'development') {
+    console.log('Environment:', process.env.NODE_ENV);
+    console.log('Supabase URL configured:', !!supabaseUrl);
+    console.log('Supabase Key configured:', !!supabaseAnonKey);
+}
+
 if (!supabaseUrl || !supabaseAnonKey) {
     console.error('Missing Supabase environment variables');
+    console.error('REACT_APP_SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing');
+    console.error('REACT_APP_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Missing');
     throw new Error('Supabase environment variables are required. Please check your .env file or Vercel environment variables.');
 }
 
@@ -12,7 +21,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: true
+        detectSessionInUrl: true,
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+        storageKey: 'shopnsplit-auth-token'
     }
 });
 
@@ -23,7 +34,7 @@ export const auth = {
         // Determine the correct redirect URL based on environment
         const redirectUrl = process.env.NODE_ENV === 'production'
             ? 'https://shop-nsplit.vercel.app/auth/callback'  // Vercel production URL
-            : `${window.location.origin}/auth/callback`;       // Local development
+            : 'http://localhost:3000/auth/callback';           // Local development
 
         const { data, error } = await supabase.auth.signUp({
             email,
@@ -33,7 +44,7 @@ export const auth = {
                     username: username
                 },
                 emailRedirectTo: redirectUrl,
-                emailConfirm: false  // Disable email confirmation
+                emailConfirm: true  // Enable email confirmation
             }
         });
         return { data, error };
@@ -83,12 +94,89 @@ export const auth = {
         // Determine the correct redirect URL based on environment
         const redirectUrl = process.env.NODE_ENV === 'production'
             ? 'https://shop-nsplit.vercel.app/auth/reset-password'  // Vercel production URL
-            : `${window.location.origin}/auth/reset-password`;       // Local development
+            : 'http://localhost:3000/auth/reset-password';           // Local development
 
         const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
             redirectTo: redirectUrl
         });
         return { data, error };
+    },
+
+    // Update email
+    updateEmail: async (newEmail) => {
+        const { data, error } = await supabase.auth.updateUser({
+            email: newEmail
+        });
+        return { data, error };
+    },
+
+    // Update password
+    updatePassword: async (currentPassword, newPassword) => {
+        // First, re-authenticate with current password
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email: (await supabase.auth.getUser()).data.user.email,
+            password: currentPassword
+        });
+
+        if (authError) {
+            return { error: authError };
+        }
+
+        // Then update the password
+        const { data, error } = await supabase.auth.updateUser({
+            password: newPassword
+        });
+        return { data, error };
+    },
+
+    // Delete account
+    deleteAccount: async (password) => {
+        try {
+            // First, re-authenticate with password
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                email: (await supabase.auth.getUser()).data.user.email,
+                password: password
+            });
+
+            if (authError) {
+                return { error: authError };
+            }
+
+            // Get the current session token
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                return { error: { message: 'No active session found' } };
+            }
+
+            // Call the server endpoint to delete the account
+            const serverUrl = process.env.NODE_ENV === 'production'
+                ? 'https://shop-nsplit.vercel.app'
+                : 'http://localhost:5001';
+
+            console.log('Deleting account with server URL:', serverUrl);
+            console.log('Session token available:', !!session.access_token);
+
+            const response = await fetch(`${serverUrl}/api/supabase-auth/delete-account`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                }
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                return { error: { message: result.message || 'Failed to delete account' } };
+            }
+
+            // Sign out after successful deletion
+            await supabase.auth.signOut();
+            return { data: result, error: null };
+        } catch (error) {
+            console.error('Delete account error:', error);
+            return { error: { message: 'Failed to delete account. Please try again.' } };
+        }
     }
 };
 

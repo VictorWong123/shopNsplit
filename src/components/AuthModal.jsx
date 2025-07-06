@@ -161,33 +161,16 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                         setMessage('Registration failed: ' + error.message);
                     }
                 } else if (data.user) {
-                    // The user profile is automatically created by the database trigger
-                    // We don't need to manually upsert it
+                    // User registered successfully, but needs to confirm email
+                    setMessage('Registration successful! Please check your email and click the confirmation link to activate your account.');
 
-                    // Auto-login the user after successful registration
-                    const user = {
-                        id: data.user.id,
-                        email: data.user.email,
-                        username: formData.email.split('@')[0]
-                    };
+                    // Don't auto-login the user - they need to confirm email first
+                    // The user profile will be created automatically by the database trigger
 
-                    // Ensure user profile exists in the users table
-                    try {
-                        const { error: profileError } = await users.upsertUser(data.user.id, {
-                            username: formData.email.split('@')[0],
-                            email: data.user.email
-                        });
-
-                        if (profileError) {
-                            console.error('Profile creation error:', profileError);
-                            // Don't fail registration, but log the error
-                        }
-                    } catch (profileError) {
-                        // Silently handle profile creation errors
-                    }
-
-                    onAuthSuccess(user);
-                    onClose();
+                    // Close the modal after showing the message
+                    setTimeout(() => {
+                        onClose();
+                    }, 3000);
                 } else {
                     setMessage('Registration failed: No user data returned');
                 }
@@ -332,8 +315,14 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                     )}
 
                     {message && (
-                        <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                            <p className="text-sm text-red-600">{message}</p>
+                        <div className={`border rounded-md p-3 ${message.includes('successful') || message.includes('sent')
+                                ? 'bg-green-50 border-green-200'
+                                : 'bg-red-50 border-red-200'
+                            }`}>
+                            <p className={`text-sm ${message.includes('successful') || message.includes('sent')
+                                    ? 'text-green-600'
+                                    : 'text-red-600'
+                                }`}>{message}</p>
                         </div>
                     )}
 

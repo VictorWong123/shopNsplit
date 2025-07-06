@@ -74,6 +74,57 @@ const userOperations = {
 
         if (error && error.code !== 'PGRST116') throw error;
         return data;
+    },
+
+    async deleteUser(userId) {
+        try {
+            // First, delete all receipts owned by the user
+            const { error: receiptsError } = await supabase
+                .from('receipts')
+                .delete()
+                .eq('owner_id', userId);
+
+            if (receiptsError) {
+                console.error('Error deleting user receipts:', receiptsError);
+                throw receiptsError;
+            }
+
+            // Then, delete the user profile from the users table
+            const { error: userError } = await supabase
+                .from('users')
+                .delete()
+                .eq('id', userId);
+
+            if (userError) {
+                console.error('Error deleting user profile:', userError);
+                throw userError;
+            }
+
+            // Finally, delete the user from Supabase Auth (requires admin privileges)
+            const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+
+            if (authError) {
+                console.error('Error deleting user from auth:', authError);
+                throw authError;
+            }
+
+            return { success: true };
+        } catch (error) {
+            console.error('Error in deleteUser:', error);
+            throw error;
+        }
+    },
+
+    async updateUserProfile(userId, updates) {
+        const { data, error } = await supabase
+            .from('users')
+            .update(updates)
+            .eq('id', userId)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
     }
 };
 

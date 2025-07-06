@@ -11,7 +11,8 @@ import UserMenu from './components/UserMenu';
 import Notification from './components/Notification';
 import AuthCallback from './components/AuthCallback';
 import ResetPassword from './components/ResetPassword';
-import { auth, receipts, users } from './supabaseClient';
+import SettingsPage from './components/SettingsPage';
+import { auth, receipts, users, supabase } from './supabaseClient';
 import { calculateAllTotals } from './components/PriceCalculator';
 
 function App() {
@@ -20,7 +21,7 @@ function App() {
     const [everyoneItems, setEveryoneItems] = useState([{ name: '', price: '' }]);
     const [splitGroupsItems, setSplitGroupsItems] = useState([]);
     const [personalItems, setPersonalItems] = useState([]);
-    const [currentPage, setCurrentPage] = useState('setup'); // 'setup', 'grocery', 'splitgroups', 'personal', 'receipt', 'receipts', 'shared', 'auth-callback', 'reset-password'
+    const [currentPage, setCurrentPage] = useState('setup'); // 'setup', 'grocery', 'splitgroups', 'personal', 'receipt', 'receipts', 'shared', 'auth-callback', 'reset-password', 'settings'
     const [sharedReceiptId, setSharedReceiptId] = useState(null);
 
     // Authentication state
@@ -52,6 +53,44 @@ function App() {
     useEffect(() => {
         checkAuthStatus();
         checkForSharedReceipt();
+
+        // Set up auth state listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (event, session) => {
+                console.log('Auth state changed:', event, session?.user?.email);
+
+                if (event === 'SIGNED_IN' && session?.user) {
+                    console.log('User signed in, updating state...');
+                    // User signed in
+                    const { data: userProfile } = await users.getUserProfile(session.user.id);
+                    const userData = {
+                        id: session.user.id,
+                        email: session.user.email,
+                        username: userProfile?.username || session.user.email.split('@')[0]
+                    };
+                    console.log('Setting user from SIGNED_IN:', userData);
+                    setUser(userData);
+                } else if (event === 'SIGNED_OUT') {
+                    console.log('User signed out, clearing state...');
+                    // User signed out
+                    setUser(null);
+                } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+                    console.log('Token refreshed, updating state...');
+                    // Token refreshed, update user state
+                    const { data: userProfile } = await users.getUserProfile(session.user.id);
+                    const userData = {
+                        id: session.user.id,
+                        email: session.user.email,
+                        username: userProfile?.username || session.user.email.split('@')[0]
+                    };
+                    console.log('Setting user from TOKEN_REFRESHED:', userData);
+                    setUser(userData);
+                }
+            }
+        );
+
+        // Cleanup subscription on unmount
+        return () => subscription.unsubscribe();
     }, []);
 
     const checkForSharedReceipt = () => {
@@ -80,36 +119,54 @@ function App() {
 
     const checkAuthStatus = async () => {
         try {
-            const { user, error } = await auth.getCurrentUser();
+            console.log('Checking auth status...');
 
-            if (error) {
+            // First check if there's an active session
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+            if (sessionError) {
+                console.error('Session check error:', sessionError);
                 return;
             }
 
-            if (user) {
+            console.log('Session found:', !!session);
+            console.log('User in session:', !!session?.user);
+
+            if (session && session.user) {
+                console.log('User email:', session.user.email);
+
                 // Get user profile from our users table
-                const { data: userProfile, error: profileError } = await users.getUserProfile(user.id);
+                const { data: userProfile, error: profileError } = await users.getUserProfile(session.user.id);
 
                 if (profileError) {
+                    console.log('Profile error, creating profile...');
                     // Try to create user profile if it doesn't exist
-                    const { error: createError } = await users.upsertUser(user.id, {
-                        username: user.email.split('@')[0],
-                        email: user.email
+                    const { error: createError } = await users.upsertUser(session.user.id, {
+                        username: session.user.email.split('@')[0],
+                        email: session.user.email
                     });
 
                     if (createError) {
-                        // Silently handle profile creation errors
+                        console.error('Profile creation error:', createError);
                     }
                 }
 
-                setUser({
-                    id: user.id,
-                    email: user.email,
-                    username: userProfile?.username || user.email.split('@')[0]
-                });
+                const userData = {
+                    id: session.user.id,
+                    email: session.user.email,
+                    username: userProfile?.username || session.user.email.split('@')[0]
+                };
+
+                console.log('Setting user:', userData);
+                setUser(userData);
+            } else {
+                console.log('No active session, setting user to null');
+                // No active session, ensure user is null
+                setUser(null);
             }
         } catch (error) {
-            // Silently handle auth check errors
+            console.error('Auth check error:', error);
+            setUser(null);
         }
     };
 
@@ -126,9 +183,19 @@ function App() {
         try {
             await auth.signOut();
             setUser(null);
+            // Reset to setup page after logout
+            setCurrentPage('setup');
         } catch (error) {
             // Silently handle logout errors
         }
+    };
+
+    const handleUserUpdate = (updatedUser) => {
+        setUser(updatedUser);
+    };
+
+    const handleOpenSettings = () => {
+        setCurrentPage('settings');
     };
 
     const handleSaveReceipt = async () => {
@@ -367,6 +434,7 @@ function App() {
                                 user={user}
                                 onLogout={handleLogout}
                                 onViewReceipts={handleViewReceipts}
+                                onOpenSettings={handleOpenSettings}
                             />
                         ) : (
                             <div className="flex items-center space-x-2">
@@ -400,6 +468,14 @@ function App() {
                 )}
                 {currentPage === 'reset-password' && (
                     <ResetPassword />
+                )}
+                {currentPage === 'settings' && (
+                    <SettingsPage
+                        user={user}
+                        onBack={() => setCurrentPage('setup')}
+                        onUserUpdate={handleUserUpdate}
+                        onLogout={handleLogout}
+                    />
                 )}
                 {currentPage === 'shared' && sharedReceiptId && (
                     <SharedReceiptPage receiptId={sharedReceiptId} />
