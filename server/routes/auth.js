@@ -15,11 +15,6 @@ const ensureSessionReady = (req, res, next) => {
 
 // Register
 router.post('/register', ensureSessionReady, async (req, res) => {
-    console.log('Register request received:', {
-        body: req.body,
-        session: !!req.session,
-        environment: process.env.NODE_ENV
-    });
 
     const { username, password } = req.body;
     if (!username || !password) {
@@ -30,14 +25,12 @@ router.post('/register', ensureSessionReady, async (req, res) => {
         // Check if user already exists
         const existingUser = await userOperations.findUserByUsername(username);
         if (existingUser) {
-            console.log('Username already exists:', username);
             return res.status(400).json({ message: 'Username already exists.' });
         }
 
         // Hash password and create user
         const hash = await bcrypt.hash(password, 10);
         const user = await userOperations.createUser(username, hash);
-        console.log('User created:', user.id);
 
         // Log in the user after registration
         req.login(user, err => {
@@ -45,7 +38,6 @@ router.post('/register', ensureSessionReady, async (req, res) => {
                 console.error('Login after register error:', err);
                 return res.status(500).json({ message: 'Login after register failed.' });
             }
-            console.log('User logged in after registration');
             res.json({ user: { id: user.id, username: user.username } });
         });
     } catch (err) {

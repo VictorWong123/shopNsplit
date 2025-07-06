@@ -184,7 +184,6 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                         }
                     } catch (profileError) {
                         // Silently handle profile creation errors
-                        console.log('Profile creation error:', profileError);
                     }
 
                     onAuthSuccess(user);

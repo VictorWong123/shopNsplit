@@ -26,7 +26,7 @@ const setupDatabase = async () => {
             throw new Error('Failed to connect to Supabase database. Please ensure the database schema is set up correctly.');
         }
 
-        console.log('Database connection successful');
+
         return true;
     } catch (error) {
         console.error('Database setup error:', error);

@@ -32,7 +32,6 @@ module.exports = function (passport) {
         try {
             const user = await userOperations.findUserById(id);
             if (!user) {
-                console.log('User not found during deserialization:', id);
                 return done(null, null);
             }
             done(null, user);

@@ -8,14 +8,7 @@ const { setupDatabase } = require('./supabase');
 
 const app = express();
 
-// Log environment variables for debugging
-console.log('Environment check:', {
-    NODE_ENV: process.env.NODE_ENV,
-    PORT: process.env.PORT,
-    SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'NOT SET',
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'NOT SET',
-    SESSION_SECRET: process.env.SESSION_SECRET ? 'SET' : 'NOT SET'
-});
+
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -59,9 +52,6 @@ app.get('/api/test', (req, res) => {
 
 // Simple test route for debugging
 app.post('/api/test-register', (req, res) => {
-    console.log('Test register endpoint hit');
-    console.log('Request body:', req.body);
-    console.log('Session available:', !!req.session);
     res.json({
         message: 'Test endpoint working',
         body: req.body,
@@ -112,12 +102,10 @@ app.use(session({
 require('./passportConfig')(passport);
 app.use(passport.initialize());
 app.use(passport.session());
-console.log('Session and passport initialized successfully');
 
 // Register routes after session setup
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/receipts', require('./routes/receipts'));
-console.log('Routes registered after session setup');
 
 // Handle shared receipt URLs (both development and production)
 app.get('/shared/:id', (req, res) => {
@@ -155,22 +143,12 @@ app.use('/api/*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5001;
-console.log(`Starting server on port ${PORT} (PORT env: ${process.env.PORT || 'not set'})`);
-console.log('All environment variables:', {
-    NODE_ENV: process.env.NODE_ENV,
-    PORT: process.env.PORT,
-    SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'NOT SET',
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'NOT SET',
-    SESSION_SECRET: process.env.SESSION_SECRET ? 'SET' : 'NOT SET'
-});
 
 // Initialize database and start server
 setupDatabase()
     .then(() => {
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`Server running on port ${PORT}`);
-            console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-            console.log(`Server URL: http://localhost:${PORT}`);
         });
     })
     .catch((error) => {
