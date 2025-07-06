@@ -147,7 +147,7 @@ const PORT = process.env.PORT || 5001;
 setupDatabase()
     .then(() => {
         app.listen(PORT, '0.0.0.0', () => {
-            console.log(`Server running on port ${PORT}`);
+            // Server started successfully
         });
     })
     .catch((error) => {

@@ -12,15 +12,14 @@ router.get('/test', (req, res) => {
 const verifySupabaseToken = async (req, res, next) => {
     const authHeader = req.headers.authorization;
 
-    console.log('Auth header received:', authHeader ? 'Yes' : 'No');
-    console.log('Auth header starts with Bearer:', authHeader?.startsWith('Bearer '));
+
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ message: 'Authorization header required' });
     }
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-    console.log('Token length:', token.length);
+
 
     try {
         // Verify the token with Supabase
@@ -31,7 +30,7 @@ const verifySupabaseToken = async (req, res, next) => {
             return res.status(401).json({ message: 'Invalid or expired token' });
         }
 
-        console.log('Token verified for user:', user.id);
+
         req.user = user;
         next();
     } catch (error) {

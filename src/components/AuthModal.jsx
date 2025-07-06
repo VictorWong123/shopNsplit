@@ -143,7 +143,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                         username: userProfile?.username || data.user.email.split('@')[0]
                     };
                     onAuthSuccess(user);
-                    onClose();
+                    // Don't call onClose here - let the auth state listener handle it
                 }
             } else if (mode === 'register') {
                 // Register new user
@@ -316,12 +316,12 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
 
                     {message && (
                         <div className={`border rounded-md p-3 ${message.includes('successful') || message.includes('sent')
-                                ? 'bg-green-50 border-green-200'
-                                : 'bg-red-50 border-red-200'
+                            ? 'bg-green-50 border-green-200'
+                            : 'bg-red-50 border-red-200'
                             }`}>
                             <p className={`text-sm ${message.includes('successful') || message.includes('sent')
-                                    ? 'text-green-600'
-                                    : 'text-red-600'
+                                ? 'text-green-600'
+                                : 'text-red-600'
                                 }`}>{message}</p>
                         </div>
                     )}

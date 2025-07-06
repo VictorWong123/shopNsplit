@@ -3,12 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
-// Log environment info for debugging (only in development)
-if (process.env.NODE_ENV === 'development') {
-    console.log('Environment:', process.env.NODE_ENV);
-    console.log('Supabase URL configured:', !!supabaseUrl);
-    console.log('Supabase Key configured:', !!supabaseAnonKey);
-}
+
 
 if (!supabaseUrl || !supabaseAnonKey) {
     console.error('Missing Supabase environment variables');
@@ -153,8 +148,7 @@ export const auth = {
                 ? 'https://shop-nsplit.vercel.app'
                 : 'http://localhost:5001';
 
-            console.log('Deleting account with server URL:', serverUrl);
-            console.log('Session token available:', !!session.access_token);
+
 
             const response = await fetch(`${serverUrl}/api/supabase-auth/delete-account`, {
                 method: 'DELETE',
@@ -174,7 +168,6 @@ export const auth = {
             await supabase.auth.signOut();
             return { data: result, error: null };
         } catch (error) {
-            console.error('Delete account error:', error);
             return { error: { message: 'Failed to delete account. Please try again.' } };
         }
     }
@@ -369,11 +362,18 @@ export const users = {
     // Get user profile
     getUserProfile: async (userId) => {
         try {
-            const { data, error } = await supabase
+            // Add timeout to prevent hanging
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Profile fetch timeout')), 5000);
+            });
+
+            const fetchPromise = supabase
                 .from('users')
                 .select('*')
                 .eq('id', userId)
                 .single();
+
+            const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
 
             if (error) {
                 return { data: null, error };

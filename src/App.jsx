@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import SetupPage from './components/SetupPage';
 import GroceryPage from './components/GroceryPage';
 import SplitGroupsPage from './components/SplitGroupsPage';
@@ -26,6 +26,8 @@ function App() {
 
     // Authentication state
     const [user, setUser] = useState(null);
+
+
     const [authModal, setAuthModal] = useState({ isOpen: false, mode: 'login' });
     const [savingReceipt, setSavingReceipt] = useState(false);
     const [receiptSaved, setReceiptSaved] = useState(false);
@@ -36,62 +38,75 @@ function App() {
     const [notification, setNotification] = useState(null);
 
     // Track which pages have been visited
-    const getVisitedPages = () => {
+    const visitedPages = useMemo(() => {
         const visited = ['setup'];
         if (names.length > 0) visited.push('grocery');
         if (splitGroupsItems.length > 0 || everyoneItems.some(item => item.name.trim() !== '')) visited.push('splitgroups');
         if (personalItems.length > 0 || splitGroupsItems.length > 0 || everyoneItems.some(item => item.name.trim() !== '')) visited.push('personal');
         if (personalItems.length > 0) visited.push('receipt');
         return visited;
-    };
-
-    const visitedPages = getVisitedPages();
+    }, [names, splitGroupsItems, everyoneItems, personalItems]);
 
 
 
     // Check authentication status on app load and handle shared receipts
     useEffect(() => {
-        checkAuthStatus();
         checkForSharedReceipt();
 
         // Set up auth state listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
-                console.log('Auth state changed:', event, session?.user?.email);
-
                 if (event === 'SIGNED_IN' && session?.user) {
-                    console.log('User signed in, updating state...');
-                    // User signed in
-                    const { data: userProfile } = await users.getUserProfile(session.user.id);
+                    // Set user immediately with basic data to avoid hanging
                     const userData = {
                         id: session.user.id,
                         email: session.user.email,
-                        username: userProfile?.username || session.user.email.split('@')[0]
+                        username: session.user.email.split('@')[0]
                     };
-                    console.log('Setting user from SIGNED_IN:', userData);
                     setUser(userData);
+
+                    // Try to get user profile in background (non-blocking)
+                    setTimeout(async () => {
+                        try {
+                            const { data: userProfile, error: profileError } = await users.getUserProfile(session.user.id);
+
+                            if (userProfile?.username) {
+                                const updatedUserData = {
+                                    ...userData,
+                                    username: userProfile.username
+                                };
+                                setUser(updatedUserData);
+                            }
+                        } catch (error) {
+                            // Silently handle background profile fetch errors
+                        }
+                    }, 100);
                 } else if (event === 'SIGNED_OUT') {
-                    console.log('User signed out, clearing state...');
                     // User signed out
-                    setUser(null);
+                    if (user !== null) {
+                        setUser(null);
+                    }
                 } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-                    console.log('Token refreshed, updating state...');
-                    // Token refreshed, update user state
-                    const { data: userProfile } = await users.getUserProfile(session.user.id);
+                    // Token refreshed, update user state immediately
                     const userData = {
                         id: session.user.id,
                         email: session.user.email,
-                        username: userProfile?.username || session.user.email.split('@')[0]
+                        username: session.user.email.split('@')[0]
                     };
-                    console.log('Setting user from TOKEN_REFRESHED:', userData);
-                    setUser(userData);
+                    // Only update if user data is different
+                    if (!user || user.id !== userData.id || user.email !== userData.email || user.username !== userData.username) {
+                        setUser(userData);
+                    }
                 }
             }
         );
 
+        // Check initial auth status after setting up listener
+        checkAuthStatus();
+
         // Cleanup subscription on unmount
         return () => subscription.unsubscribe();
-    }, []);
+    }, []); // Empty dependency array to run only once
 
     const checkForSharedReceipt = () => {
         const path = window.location.pathname;
@@ -119,59 +134,71 @@ function App() {
 
     const checkAuthStatus = async () => {
         try {
-            console.log('Checking auth status...');
-
             // First check if there's an active session
             const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
             if (sessionError) {
-                console.error('Session check error:', sessionError);
                 return;
             }
 
-            console.log('Session found:', !!session);
-            console.log('User in session:', !!session?.user);
-
             if (session && session.user) {
-                console.log('User email:', session.user.email);
 
-                // Get user profile from our users table
-                const { data: userProfile, error: profileError } = await users.getUserProfile(session.user.id);
-
-                if (profileError) {
-                    console.log('Profile error, creating profile...');
-                    // Try to create user profile if it doesn't exist
-                    const { error: createError } = await users.upsertUser(session.user.id, {
-                        username: session.user.email.split('@')[0],
-                        email: session.user.email
-                    });
-
-                    if (createError) {
-                        console.error('Profile creation error:', createError);
-                    }
-                }
-
+                // Set user immediately with basic data
                 const userData = {
                     id: session.user.id,
                     email: session.user.email,
-                    username: userProfile?.username || session.user.email.split('@')[0]
+                    username: session.user.email.split('@')[0]
                 };
 
-                console.log('Setting user:', userData);
-                setUser(userData);
+                // Only update if user data is different
+                if (!user || user.id !== userData.id || user.email !== userData.email || user.username !== userData.username) {
+                    setUser(userData);
+                }
+
+                // Try to get user profile in background (non-blocking)
+                setTimeout(async () => {
+                    try {
+                        const { data: userProfile, error: profileError } = await users.getUserProfile(session.user.id);
+
+                        if (profileError) {
+                            // Try to create user profile if it doesn't exist
+                            await users.upsertUser(session.user.id, {
+                                username: session.user.email.split('@')[0],
+                                email: session.user.email
+                            });
+                        } else if (userProfile?.username) {
+                            const updatedUserData = {
+                                ...userData,
+                                username: userProfile.username
+                            };
+                            setUser(updatedUserData);
+                        }
+                    } catch (error) {
+                        // Silently handle background profile fetch errors
+                    }
+                }, 100);
+
+                // Only update user state if it's different from current state
+                if (!user || user.id !== userData.id || user.email !== userData.email || user.username !== userData.username) {
+                    setUser(userData);
+                }
             } else {
-                console.log('No active session, setting user to null');
-                // No active session, ensure user is null
-                setUser(null);
+                // Only set user to null if it's not already null
+                if (user !== null) {
+                    setUser(null);
+                }
             }
         } catch (error) {
-            console.error('Auth check error:', error);
-            setUser(null);
+            if (user !== null) {
+                setUser(null);
+            }
         }
     };
 
     const handleAuthSuccess = (userData) => {
-        setUser(userData);
+        // Don't set user state here - let the auth state listener handle it
+        // This prevents conflicts between the callback and the auth state listener
+        // Close the modal
         setAuthModal({ isOpen: false, mode: 'login' });
     };
 
