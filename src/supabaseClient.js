@@ -22,6 +22,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export const auth = {
     // Sign up
     signUp: async (email, password, username) => {
+        // Determine the correct redirect URL based on environment
+        const redirectUrl = process.env.NODE_ENV === 'production'
+            ? 'https://shop-nsplit.vercel.app/auth/callback'  // Vercel production URL
+            : `${window.location.origin}/auth/callback`;       // Local development
+
         const { data, error } = await supabase.auth.signUp({
             email,
             password,
@@ -29,7 +34,7 @@ export const auth = {
                 data: {
                     username: username
                 },
-                emailRedirectTo: `${window.location.origin}/auth/callback`
+                emailRedirectTo: redirectUrl
             }
         });
         return { data, error };
@@ -82,8 +87,13 @@ export const auth = {
 
     // Reset password
     resetPassword: async (email) => {
+        // Determine the correct redirect URL based on environment
+        const redirectUrl = process.env.NODE_ENV === 'production'
+            ? 'https://shop-nsplit.vercel.app/auth/reset-password'  // Vercel production URL
+            : `${window.location.origin}/auth/reset-password`;       // Local development
+
         const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/auth/reset-password`
+            redirectTo: redirectUrl
         });
         return { data, error };
     }
