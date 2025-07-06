@@ -37,9 +37,16 @@ const setupDatabase = async () => {
 // User operations
 const userOperations = {
     async createUser(username, hashedPassword) {
+        // Note: This function is for legacy backend compatibility
+        // The frontend now uses Supabase Auth directly
+        // This function creates a user profile in the users table
         const { data, error } = await supabase
             .from('users')
-            .insert([{ username, password: hashedPassword }])
+            .insert([{
+                id: require('crypto').randomUUID(), // Generate a UUID for the user
+                username,
+                email: `${username}@legacy.local` // Placeholder email for legacy users
+            }])
             .select()
             .single();
 
@@ -76,12 +83,14 @@ const receiptOperations = {
         const { data: receipt, error } = await supabase
             .from('receipts')
             .insert([{
-                user_id: userId,
+                owner_id: userId, // Updated to match new schema
                 title: receiptData.title || 'Receipt',
                 total_amount: receiptData.totalAmount || 0,
-                items: receiptData.items || [],
                 participants: receiptData.participants || [],
-                split_groups: receiptData.splitGroups || null
+                everyone_items: receiptData.items || [], // Updated to match new schema
+                split_groups_items: receiptData.splitGroups || null, // Updated to match new schema
+                personal_items: null, // New field in schema
+                content_hash: null // New field in schema
             }])
             .select()
             .single();
@@ -94,7 +103,7 @@ const receiptOperations = {
         const { data, error } = await supabase
             .from('receipts')
             .select('*')
-            .eq('user_id', userId)
+            .eq('owner_id', userId) // Updated to match new schema
             .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -141,14 +150,14 @@ const receiptOperations = {
 
         const { data: receipts, error } = await supabase
             .from('receipts')
-            .select('id, items, participants, total_amount')
-            .eq('user_id', userId);
+            .select('id, everyone_items, participants, total_amount') // Updated to match new schema
+            .eq('owner_id', userId); // Updated to match new schema
 
         if (error) throw error;
         if (!receipts) return false;
 
         return receipts.some(r =>
-            JSON.stringify(r.items) === itemsString &&
+            JSON.stringify(r.everyone_items) === itemsString && // Updated to match new schema
             JSON.stringify(r.participants) === participantsString &&
             r.total_amount === (receiptData.totalAmount || 0)
         );

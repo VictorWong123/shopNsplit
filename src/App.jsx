@@ -9,6 +9,8 @@ import SharedReceiptPage from './components/SharedReceiptPage';
 import AuthModal from './components/AuthModal';
 import UserMenu from './components/UserMenu';
 import Notification from './components/Notification';
+import AuthCallback from './components/AuthCallback';
+import ResetPassword from './components/ResetPassword';
 import { auth, receipts, users } from './supabaseClient';
 import { calculateAllTotals } from './components/PriceCalculator';
 
@@ -18,7 +20,7 @@ function App() {
     const [everyoneItems, setEveryoneItems] = useState([{ name: '', price: '' }]);
     const [splitGroupsItems, setSplitGroupsItems] = useState([]);
     const [personalItems, setPersonalItems] = useState([]);
-    const [currentPage, setCurrentPage] = useState('setup'); // 'setup', 'grocery', 'splitgroups', 'personal', 'receipt', 'receipts', 'shared'
+    const [currentPage, setCurrentPage] = useState('setup'); // 'setup', 'grocery', 'splitgroups', 'personal', 'receipt', 'receipts', 'shared', 'auth-callback', 'reset-password'
     const [sharedReceiptId, setSharedReceiptId] = useState(null);
 
     // Authentication state
@@ -53,7 +55,7 @@ function App() {
 
         // Handle email confirmation
         const handleEmailConfirmation = async () => {
-            const { data, error } = await auth.handleEmailConfirmation();
+            const { data } = await auth.handleEmailConfirmation();
             if (data?.session?.user) {
                 setUser({
                     id: data.session.user.id,
@@ -72,40 +74,49 @@ function App() {
 
     const checkForSharedReceipt = () => {
         const path = window.location.pathname;
+
+        // Check for shared receipt
         const sharedMatch = path.match(/^\/shared\/(.+)$/);
         if (sharedMatch) {
             setSharedReceiptId(sharedMatch[1]);
             setCurrentPage('shared');
+            return;
+        }
+
+        // Check for auth callback
+        if (path === '/auth/callback') {
+            setCurrentPage('auth-callback');
+            return;
+        }
+
+        // Check for reset password
+        if (path === '/auth/reset-password') {
+            setCurrentPage('reset-password');
+            return;
         }
     };
 
     const checkAuthStatus = async () => {
         try {
-            console.log('Checking auth status...');
             const { user, error } = await auth.getCurrentUser();
 
             if (error) {
-                console.error('Auth check failed:', error);
                 return;
             }
 
             if (user) {
-                console.log('User found:', user.id);
                 // Get user profile from our users table
                 const { data: userProfile, error: profileError } = await users.getUserProfile(user.id);
 
                 if (profileError) {
-                    console.error('Error fetching user profile:', profileError);
                     // Try to create user profile if it doesn't exist
-                    const { data: newProfile, error: createError } = await users.upsertUser(user.id, {
+                    const { error: createError } = await users.upsertUser(user.id, {
                         username: user.email.split('@')[0],
                         email: user.email
                     });
 
                     if (createError) {
-                        console.error('Error creating user profile:', createError);
-                    } else {
-                        console.log('User profile created:', newProfile);
+                        // Silently handle profile creation errors
                     }
                 }
 
@@ -114,11 +125,9 @@ function App() {
                     email: user.email,
                     username: userProfile?.username || user.email.split('@')[0]
                 });
-            } else {
-                console.log('No user found');
             }
         } catch (error) {
-            console.error('Auth check failed:', error);
+            // Silently handle auth check errors
         }
     };
 
@@ -136,18 +145,16 @@ function App() {
             await auth.signOut();
             setUser(null);
         } catch (error) {
-            console.error('Logout error:', error);
+            // Silently handle logout errors
         }
     };
 
     const handleSaveReceipt = async () => {
         if (!user) {
-            console.error('No user found when trying to save receipt');
             setNotification({ message: 'Please sign in to save receipts', type: 'error' });
             return;
         }
 
-        console.log('Starting to save receipt for user:', user.id);
         setSavingReceipt(true);
 
         try {
@@ -175,12 +182,9 @@ function App() {
                 })
             };
 
-            console.log('Calling saveReceipt with data:', receiptData);
             const result = await receipts.saveReceipt(receiptData, user.id);
-            console.log('Save receipt result:', result);
 
             if (result.error) {
-                console.error('Error saving receipt:', result.error);
                 setNotification({
                     message: `Failed to save receipt: ${result.error.message || 'Unknown error'}`,
                     type: 'error'
@@ -193,7 +197,6 @@ function App() {
                 setReceiptSaved(true);
             }
         } catch (error) {
-            console.error('Exception in handleSaveReceipt:', error);
             setNotification({
                 message: `Error saving receipt: ${error.message || 'Unknown error'}`,
                 type: 'error'
@@ -391,6 +394,12 @@ function App() {
         <div className="min-h-screen bg-gray-50">
             {currentPage !== 'shared' && renderHeader()}
             <main className="py-8">
+                {currentPage === 'auth-callback' && (
+                    <AuthCallback />
+                )}
+                {currentPage === 'reset-password' && (
+                    <ResetPassword />
+                )}
                 {currentPage === 'shared' && sharedReceiptId && (
                     <SharedReceiptPage receiptId={sharedReceiptId} />
                 )}

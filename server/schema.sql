@@ -1,3 +1,4 @@
+-- Legacy schema (for reference only - use database-setup.sql for new installations)
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

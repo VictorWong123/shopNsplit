@@ -1,23 +1,29 @@
--- Complete Database Setup for ShopNSplit App
+-- Safe Database Setup for ShopNSplit App
+-- This script can be run multiple times safely
 -- Run this in your Supabase SQL Editor
 
 -- Enable necessary extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create users table (profiles)
-CREATE TABLE IF NOT EXISTS users (
-    id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- Create users table (profiles) - only if it doesn't exist
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users') THEN
+        CREATE TABLE users (
+            id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+    END IF;
+END $$;
 
 -- Drop existing receipts table if it exists to recreate with new schema
 DROP TABLE IF EXISTS receipts CASCADE;
 
 -- Create receipts table with updated schema
-CREATE TABLE IF NOT EXISTS receipts (
+CREATE TABLE receipts (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     owner_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     title TEXT NOT NULL,
@@ -31,7 +37,7 @@ CREATE TABLE IF NOT EXISTS receipts (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create indexes for better performance
+-- Create indexes for better performance (only if they don't exist)
 CREATE INDEX IF NOT EXISTS idx_receipts_owner_id ON receipts(owner_id);
 CREATE INDEX IF NOT EXISTS idx_receipts_created_at ON receipts(created_at);
 CREATE INDEX IF NOT EXISTS idx_receipts_content_hash ON receipts(content_hash);
@@ -124,7 +130,5 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON users TO anon, authenticated;
 GRANT ALL ON receipts TO anon, authenticated;
 
--- Insert some sample data for testing (optional)
--- INSERT INTO users (id, username, email) VALUES 
---     ('00000000-0000-0000-0000-000000000001', 'testuser', 'test@example.com')
--- ON CONFLICT (id) DO NOTHING; 
+-- Success message
+SELECT 'Database setup completed successfully!' as status; 

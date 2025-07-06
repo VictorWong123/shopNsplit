@@ -22,33 +22,22 @@ const ReceiptsPage = ({ onBack }) => {
     const fetchReceipts = async () => {
         try {
             const result = await auth.getCurrentUser();
-            console.log('getCurrentUser result:', result);
 
             if (!result || !result.data || !result.data.user) {
-                console.log('No authenticated user found');
                 setError('Not authenticated. Please sign in again.');
                 setLoading(false);
                 return;
             }
 
             const user = result.data.user;
-            console.log('Fetching receipts for user:', user.id);
             const { data, error } = await receiptsApi.getUserReceipts(user.id);
 
             if (error) {
-                console.error('Error in fetchReceipts:', error);
-
-                // Test database connection to help debug
-                const testResult = await receiptsApi.testDatabaseConnection();
-                console.log('Database test result:', testResult);
-
                 setError(`Failed to fetch receipts: ${error.message || 'Unknown error'}`);
             } else {
-                console.log('Receipts fetched successfully:', data);
                 setReceipts(data || []);
             }
         } catch (error) {
-            console.error('Exception in fetchReceipts:', error);
             setError(`Network error: ${error.message || 'Unknown error'}`);
         } finally {
             setLoading(false);

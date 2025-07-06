@@ -111,8 +111,8 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
 
         try {
             if (isForgotPassword) {
-                const { data, error } = await supabase.auth.resetPasswordForEmail(formData.email, {
-                    redirectTo: `${window.location.origin}/reset-password`
+                const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
+                    redirectTo: `${window.location.origin}/auth/reset-password`
                 });
                 if (error) {
                     setMessage(error.message);
@@ -142,18 +142,32 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                     onAuthSuccess(user);
                     onClose();
                 }
-            } else {
+            } else if (mode === 'register') {
                 // Register new user
                 const { data, error } = await auth.signUp(formData.email, formData.password, formData.email.split('@')[0]);
 
                 if (error) {
-                    setMessage(error.message);
+                    // Provide more specific error messages
+                    if (error.message.includes('User already registered')) {
+                        setMessage('An account with this email already exists. Please sign in instead.');
+                    } else if (error.message.includes('Password')) {
+                        setMessage('Password error: ' + error.message);
+                    } else if (error.message.includes('Email')) {
+                        setMessage('Email error: ' + error.message);
+                    } else {
+                        setMessage('Registration failed: ' + error.message);
+                    }
                 } else if (data.user) {
-                    // Create user profile
-                    await users.upsertUser(data.user.id, {
-                        username: formData.email.split('@')[0],
-                        email: formData.email
-                    });
+                    // User profile is automatically created by the database trigger
+                    // We can optionally upsert to ensure it exists, but it should already be there
+                    try {
+                        await users.upsertUser(data.user.id, {
+                            username: formData.email.split('@')[0],
+                            email: formData.email
+                        });
+                    } catch (profileError) {
+                        // Continue anyway since the trigger should have created the profile
+                    }
 
                     if (data.user.email_confirmed_at) {
                         // Email already confirmed
@@ -169,6 +183,9 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                         setMessage('Please check your email and click the confirmation link to complete registration');
                     }
                 }
+            } else {
+                // This should never happen, but just in case
+                setMessage('Invalid form mode');
             }
         } catch (error) {
             setMessage('Network error. Please try again.');
@@ -177,13 +194,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
         }
     };
 
-    const switchMode = () => {
-        setFormData({ email: '', password: '', confirmPassword: '' });
-        setErrors({});
-        setMessage('');
-        setIsForgotPassword(false);
-        // This will be handled by the parent component
-    };
+    // Note: switchMode is handled by the parent component via onSwitchMode prop
 
     if (!isOpen) return null;
 
