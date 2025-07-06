@@ -68,13 +68,25 @@ CREATE TRIGGER update_receipts_updated_at BEFORE UPDATE ON receipts
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
+    -- Check if user already exists to avoid conflicts
+    IF EXISTS (SELECT 1 FROM users WHERE id = NEW.id) THEN
+        RETURN NEW;
+    END IF;
+    
+    -- Insert new user profile
     INSERT INTO users (id, username, email)
     VALUES (
         NEW.id,
         COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
         NEW.email
     );
+    
     RETURN NEW;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Log the error but don't fail the registration
+        RAISE WARNING 'Failed to create user profile for %: %', NEW.email, SQLERRM;
+        RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -105,8 +117,12 @@ CREATE POLICY "Users can view their own profile" ON users
 CREATE POLICY "Users can update their own profile" ON users
     FOR UPDATE USING (auth.uid() = id);
 
--- Note: No INSERT policy needed for users table since the trigger function handles user creation
--- and is marked as SECURITY DEFINER, which bypasses RLS
+-- Allow users to insert their own profile (for the trigger)
+CREATE POLICY "Users can insert their own profile" ON users
+    FOR INSERT WITH CHECK (auth.uid() = id);
+
+-- Note: The trigger function is marked as SECURITY DEFINER, which bypasses RLS
+-- but having this policy ensures compatibility
 
 -- RLS Policies for receipts table
 CREATE POLICY "Users can view their own receipts" ON receipts

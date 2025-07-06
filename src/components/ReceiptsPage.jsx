@@ -175,6 +175,66 @@ const ReceiptsPage = ({ onBack }) => {
         return total.toFixed(2);
     };
 
+    const calculatePaymentBreakdown = (receipt) => {
+        const participants = receipt.participants || [];
+        const paymentBreakdown = {};
+
+        // Initialize payment breakdown for all participants
+        participants.forEach(participant => {
+            paymentBreakdown[participant] = 0;
+        });
+
+        // Everyone items - split equally among all participants
+        if (receipt.everyone_items && Array.isArray(receipt.everyone_items)) {
+            const everyoneTotal = receipt.everyone_items.reduce((sum, item) => {
+                return sum + (parseFloat(item.price) || 0);
+            }, 0);
+            const everyonePerPerson = everyoneTotal / participants.length;
+            participants.forEach(participant => {
+                paymentBreakdown[participant] += everyonePerPerson;
+            });
+        }
+
+        // Split groups items - split among group participants
+        if (receipt.split_groups_items && Array.isArray(receipt.split_groups_items)) {
+            receipt.split_groups_items.forEach(group => {
+                if (group.participants && Array.isArray(group.participants) && group.items) {
+                    const groupTotal = group.items.reduce((sum, item) => {
+                        return sum + (parseFloat(item.price) || 0);
+                    }, 0);
+                    const groupPerPerson = groupTotal / group.participants.length;
+                    group.participants.forEach(participant => {
+                        if (paymentBreakdown[participant] !== undefined) {
+                            paymentBreakdown[participant] += groupPerPerson;
+                        }
+                    });
+                }
+            });
+        }
+
+        // Personal items - paid by the owner
+        if (receipt.personal_items && Array.isArray(receipt.personal_items)) {
+            receipt.personal_items.forEach(personalItem => {
+                if (personalItem.owner && personalItem.items) {
+                    const personalTotal = personalItem.items.reduce((sum, item) => {
+                        return sum + (parseFloat(item.price) || 0);
+                    }, 0);
+                    if (paymentBreakdown[personalItem.owner] !== undefined) {
+                        paymentBreakdown[personalItem.owner] += personalTotal;
+                    }
+                }
+            });
+        }
+
+        // Convert to array and sort by amount
+        const finalBreakdown = Object.entries(paymentBreakdown).map(([person, amount]) => ({
+            person,
+            amount: parseFloat(amount.toFixed(2))
+        }));
+
+        return finalBreakdown.sort((a, b) => b.amount - a.amount);
+    };
+
     if (loading) {
         return (
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -325,6 +385,23 @@ const ReceiptsPage = ({ onBack }) => {
                             <span>${(selectedReceipt.total_amount || 0).toFixed(2)}</span>
                         </div>
                     </div>
+
+                    {/* Payment Summary */}
+                    {selectedReceipt.participants && selectedReceipt.participants.length > 0 && (
+                        <div className="border-t border-gray-200 pt-4 mt-4">
+                            <h2 className="text-lg font-semibold text-gray-900 mb-3">Payment Summary</h2>
+                            <div className="space-y-2">
+                                {calculatePaymentBreakdown(selectedReceipt).map((payment, index) => (
+                                    <div key={index} className="flex justify-between items-center py-2">
+                                        <span className="text-gray-700">{payment.person}</span>
+                                        <span className="font-medium text-gray-900">
+                                            ${payment.amount.toFixed(2)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Delete Confirmation Modal (moved here so it works for single receipt view) */}

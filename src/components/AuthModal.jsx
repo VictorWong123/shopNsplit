@@ -158,16 +158,8 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                         setMessage('Registration failed: ' + error.message);
                     }
                 } else if (data.user) {
-                    // User profile is automatically created by the database trigger
-                    // We can optionally upsert to ensure it exists, but it should already be there
-                    try {
-                        await users.upsertUser(data.user.id, {
-                            username: formData.email.split('@')[0],
-                            email: formData.email
-                        });
-                    } catch (profileError) {
-                        // Continue anyway since the trigger should have created the profile
-                    }
+                    // The user profile is automatically created by the database trigger
+                    // We don't need to manually upsert it
 
                     if (data.user.email_confirmed_at) {
                         // Email already confirmed
@@ -182,6 +174,8 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                         // Email confirmation required
                         setMessage('Please check your email and click the confirmation link to complete registration');
                     }
+                } else {
+                    setMessage('Registration failed: No user data returned');
                 }
             } else {
                 // This should never happen, but just in case
