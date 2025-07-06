@@ -18,13 +18,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cors({
     origin: process.env.NODE_ENV === 'production'
         ? [
-            'https://shopnsplit.vercel.app',
-            'https://shopnsplit-git-main.vercel.app',
-            'https://shopnsplit-git-develop.vercel.app',
-            'https://shopnsplit-backend.onrender.com',
+            'https://shop-nsplit.vercel.app',
             process.env.FRONTEND_URL
         ].filter(Boolean)
-        : 'http://localhost:3000',
+        : ['http://localhost:3000', 'http://localhost:3001'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -39,6 +36,7 @@ app.get('/health', (req, res) => {
         port: process.env.PORT || 'not set',
         routes: {
             auth: '/api/auth/*',
+            'supabase-auth': '/api/supabase-auth/*',
             receipts: '/api/receipts/*',
             test: '/api/test'
         }
@@ -105,6 +103,7 @@ app.use(passport.session());
 
 // Register routes after session setup
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/supabase-auth', require('./routes/supabase-auth'));
 app.use('/api/receipts', require('./routes/receipts'));
 
 // Handle shared receipt URLs (both development and production)
@@ -148,7 +147,7 @@ const PORT = process.env.PORT || 5001;
 setupDatabase()
     .then(() => {
         app.listen(PORT, '0.0.0.0', () => {
-            console.log(`Server running on port ${PORT}`);
+            // Server started successfully
         });
     })
     .catch((error) => {

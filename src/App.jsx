@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import SetupPage from './components/SetupPage';
 import GroceryPage from './components/GroceryPage';
 import SplitGroupsPage from './components/SplitGroupsPage';
@@ -11,7 +11,8 @@ import UserMenu from './components/UserMenu';
 import Notification from './components/Notification';
 import AuthCallback from './components/AuthCallback';
 import ResetPassword from './components/ResetPassword';
-import { auth, receipts, users } from './supabaseClient';
+import SettingsPage from './components/SettingsPage';
+import { auth, receipts, users, supabase } from './supabaseClient';
 import { calculateAllTotals } from './components/PriceCalculator';
 
 function App() {
@@ -20,11 +21,13 @@ function App() {
     const [everyoneItems, setEveryoneItems] = useState([{ name: '', price: '' }]);
     const [splitGroupsItems, setSplitGroupsItems] = useState([]);
     const [personalItems, setPersonalItems] = useState([]);
-    const [currentPage, setCurrentPage] = useState('setup'); // 'setup', 'grocery', 'splitgroups', 'personal', 'receipt', 'receipts', 'shared', 'auth-callback', 'reset-password'
+    const [currentPage, setCurrentPage] = useState('setup'); // 'setup', 'grocery', 'splitgroups', 'personal', 'receipt', 'receipts', 'shared', 'auth-callback', 'reset-password', 'settings'
     const [sharedReceiptId, setSharedReceiptId] = useState(null);
 
     // Authentication state
     const [user, setUser] = useState(null);
+
+
     const [authModal, setAuthModal] = useState({ isOpen: false, mode: 'login' });
     const [savingReceipt, setSavingReceipt] = useState(false);
     const [receiptSaved, setReceiptSaved] = useState(false);
@@ -35,24 +38,75 @@ function App() {
     const [notification, setNotification] = useState(null);
 
     // Track which pages have been visited
-    const getVisitedPages = () => {
+    const visitedPages = useMemo(() => {
         const visited = ['setup'];
         if (names.length > 0) visited.push('grocery');
         if (splitGroupsItems.length > 0 || everyoneItems.some(item => item.name.trim() !== '')) visited.push('splitgroups');
         if (personalItems.length > 0 || splitGroupsItems.length > 0 || everyoneItems.some(item => item.name.trim() !== '')) visited.push('personal');
         if (personalItems.length > 0) visited.push('receipt');
         return visited;
-    };
-
-    const visitedPages = getVisitedPages();
+    }, [names, splitGroupsItems, everyoneItems, personalItems]);
 
 
 
     // Check authentication status on app load and handle shared receipts
     useEffect(() => {
-        checkAuthStatus();
         checkForSharedReceipt();
-    }, []);
+
+        // Set up auth state listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (event, session) => {
+                if (event === 'SIGNED_IN' && session?.user) {
+                    // Set user immediately with basic data to avoid hanging
+                    const userData = {
+                        id: session.user.id,
+                        email: session.user.email,
+                        username: session.user.email.split('@')[0]
+                    };
+                    setUser(userData);
+
+                    // Try to get user profile in background (non-blocking)
+                    setTimeout(async () => {
+                        try {
+                            const { data: userProfile, error: profileError } = await users.getUserProfile(session.user.id);
+
+                            if (userProfile?.username) {
+                                const updatedUserData = {
+                                    ...userData,
+                                    username: userProfile.username
+                                };
+                                setUser(updatedUserData);
+                            }
+                        } catch (error) {
+                            // Silently handle background profile fetch errors
+                        }
+                    }, 100);
+                } else if (event === 'SIGNED_OUT') {
+                    // User signed out
+                    if (user !== null) {
+                        setUser(null);
+                    }
+                } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+                    // Token refreshed, update user state immediately
+                    const userData = {
+                        id: session.user.id,
+                        email: session.user.email,
+                        username: session.user.email.split('@')[0]
+                    };
+                    // Only update if user data is different
+                    if (!user || user.id !== userData.id || user.email !== userData.email || user.username !== userData.username) {
+                        setUser(userData);
+                    }
+                }
+            }
+        );
+
+        // Check initial auth status after setting up listener
+        checkAuthStatus();
+
+        // Cleanup subscription on unmount
+        return () => subscription.unsubscribe();
+    }, []); // Empty dependency array to run only once
 
     const checkForSharedReceipt = () => {
         const path = window.location.pathname;
@@ -80,41 +134,71 @@ function App() {
 
     const checkAuthStatus = async () => {
         try {
-            const { user, error } = await auth.getCurrentUser();
+            // First check if there's an active session
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-            if (error) {
+            if (sessionError) {
                 return;
             }
 
-            if (user) {
-                // Get user profile from our users table
-                const { data: userProfile, error: profileError } = await users.getUserProfile(user.id);
+            if (session && session.user) {
 
-                if (profileError) {
-                    // Try to create user profile if it doesn't exist
-                    const { error: createError } = await users.upsertUser(user.id, {
-                        username: user.email.split('@')[0],
-                        email: user.email
-                    });
+                // Set user immediately with basic data
+                const userData = {
+                    id: session.user.id,
+                    email: session.user.email,
+                    username: session.user.email.split('@')[0]
+                };
 
-                    if (createError) {
-                        // Silently handle profile creation errors
-                    }
+                // Only update if user data is different
+                if (!user || user.id !== userData.id || user.email !== userData.email || user.username !== userData.username) {
+                    setUser(userData);
                 }
 
-                setUser({
-                    id: user.id,
-                    email: user.email,
-                    username: userProfile?.username || user.email.split('@')[0]
-                });
+                // Try to get user profile in background (non-blocking)
+                setTimeout(async () => {
+                    try {
+                        const { data: userProfile, error: profileError } = await users.getUserProfile(session.user.id);
+
+                        if (profileError) {
+                            // Try to create user profile if it doesn't exist
+                            await users.upsertUser(session.user.id, {
+                                username: session.user.email.split('@')[0],
+                                email: session.user.email
+                            });
+                        } else if (userProfile?.username) {
+                            const updatedUserData = {
+                                ...userData,
+                                username: userProfile.username
+                            };
+                            setUser(updatedUserData);
+                        }
+                    } catch (error) {
+                        // Silently handle background profile fetch errors
+                    }
+                }, 100);
+
+                // Only update user state if it's different from current state
+                if (!user || user.id !== userData.id || user.email !== userData.email || user.username !== userData.username) {
+                    setUser(userData);
+                }
+            } else {
+                // Only set user to null if it's not already null
+                if (user !== null) {
+                    setUser(null);
+                }
             }
         } catch (error) {
-            // Silently handle auth check errors
+            if (user !== null) {
+                setUser(null);
+            }
         }
     };
 
     const handleAuthSuccess = (userData) => {
-        setUser(userData);
+        // Don't set user state here - let the auth state listener handle it
+        // This prevents conflicts between the callback and the auth state listener
+        // Close the modal
         setAuthModal({ isOpen: false, mode: 'login' });
     };
 
@@ -126,9 +210,19 @@ function App() {
         try {
             await auth.signOut();
             setUser(null);
+            // Reset to setup page after logout
+            setCurrentPage('setup');
         } catch (error) {
             // Silently handle logout errors
         }
+    };
+
+    const handleUserUpdate = (updatedUser) => {
+        setUser(updatedUser);
+    };
+
+    const handleOpenSettings = () => {
+        setCurrentPage('settings');
     };
 
     const handleSaveReceipt = async () => {
@@ -367,6 +461,7 @@ function App() {
                                 user={user}
                                 onLogout={handleLogout}
                                 onViewReceipts={handleViewReceipts}
+                                onOpenSettings={handleOpenSettings}
                             />
                         ) : (
                             <div className="flex items-center space-x-2">
@@ -400,6 +495,14 @@ function App() {
                 )}
                 {currentPage === 'reset-password' && (
                     <ResetPassword />
+                )}
+                {currentPage === 'settings' && (
+                    <SettingsPage
+                        user={user}
+                        onBack={() => setCurrentPage('setup')}
+                        onUserUpdate={handleUserUpdate}
+                        onLogout={handleLogout}
+                    />
                 )}
                 {currentPage === 'shared' && sharedReceiptId && (
                     <SharedReceiptPage receiptId={sharedReceiptId} />
