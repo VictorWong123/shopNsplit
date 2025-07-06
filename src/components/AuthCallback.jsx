@@ -17,7 +17,7 @@ const AuthCallback = () => {
                 }
 
                 if (data.session) {
-                    setMessage('Email confirmed successfully! Redirecting...');
+                    setMessage('Authentication successful! Redirecting...');
                     setTimeout(() => window.location.href = '/', 2000);
                 } else {
                     setMessage('No session found. Please try signing in again.');

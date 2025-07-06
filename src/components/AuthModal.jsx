@@ -111,8 +111,13 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
 
         try {
             if (isForgotPassword) {
+                // Determine the correct redirect URL based on environment
+                const redirectUrl = process.env.NODE_ENV === 'production'
+                    ? 'https://shop-nsplit.vercel.app/auth/reset-password'  // Vercel production URL
+                    : `${window.location.origin}/auth/reset-password`;       // Local development
+
                 const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
-                    redirectTo: `${window.location.origin}/auth/reset-password`
+                    redirectTo: redirectUrl
                 });
                 if (error) {
                     setMessage(error.message);
@@ -126,8 +131,6 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                 if (error) {
                     if (error.message.includes('Invalid login credentials')) {
                         setMessage('Incorrect email or password');
-                    } else if (error.message.includes('Email not confirmed')) {
-                        setMessage('Please check your email and click the confirmation link before signing in');
                     } else {
                         setMessage(error.message);
                     }
@@ -148,8 +151,8 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
 
                 if (error) {
                     // Provide more specific error messages
-                    if (error.message.includes('User already registered')) {
-                        setMessage('An account with this email already exists. Please sign in instead.');
+                    if (error.message.includes('User already registered') || error.message.includes('already been registered')) {
+                        setMessage('Account already exists. Please sign in instead.');
                     } else if (error.message.includes('Password')) {
                         setMessage('Password error: ' + error.message);
                     } else if (error.message.includes('Email')) {
@@ -161,19 +164,14 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onSwitchMod
                     // The user profile is automatically created by the database trigger
                     // We don't need to manually upsert it
 
-                    if (data.user.email_confirmed_at) {
-                        // Email already confirmed
-                        const user = {
-                            id: data.user.id,
-                            email: data.user.email,
-                            username: formData.email.split('@')[0]
-                        };
-                        onAuthSuccess(user);
-                        onClose();
-                    } else {
-                        // Email confirmation required
-                        setMessage('Please check your email and click the confirmation link to complete registration');
-                    }
+                    // Auto-login the user after successful registration
+                    const user = {
+                        id: data.user.id,
+                        email: data.user.email,
+                        username: formData.email.split('@')[0]
+                    };
+                    onAuthSuccess(user);
+                    onClose();
                 } else {
                     setMessage('Registration failed: No user data returned');
                 }

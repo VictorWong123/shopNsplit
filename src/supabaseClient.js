@@ -34,7 +34,8 @@ export const auth = {
                 data: {
                     username: username
                 },
-                emailRedirectTo: redirectUrl
+                emailRedirectTo: redirectUrl,
+                emailConfirm: false  // Disable email confirmation
             }
         });
         return { data, error };
@@ -77,12 +78,6 @@ export const auth = {
     // Listen to auth changes
     onAuthStateChange: (callback) => {
         return supabase.auth.onAuthStateChange(callback);
-    },
-
-    // Handle email confirmation
-    handleEmailConfirmation: async () => {
-        const { data, error } = await supabase.auth.getSession();
-        return { data, error };
     },
 
     // Reset password
