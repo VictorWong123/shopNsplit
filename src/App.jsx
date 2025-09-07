@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import StartScreen from './components/StartScreen';
 import SetupPage from './components/SetupPage';
 import GroceryPage from './components/GroceryPage';
 import SplitGroupsPage from './components/SplitGroupsPage';
@@ -6,6 +7,8 @@ import PersonalItemsPage from './components/PersonalItemsPage';
 import ReceiptPage from './components/ReceiptPage';
 import ReceiptsPage from './components/ReceiptsPage';
 import SharedReceiptPage from './components/SharedReceiptPage';
+import AIReceiptUpload from './components/AIReceiptUpload';
+import AIConfirmItems from './components/AIConfirmItems';
 import AuthModal from './components/AuthModal';
 import UserMenu from './components/UserMenu';
 import Notification from './components/Notification';
@@ -21,7 +24,7 @@ function App() {
     const [everyoneItems, setEveryoneItems] = useState([{ name: '', price: '' }]);
     const [splitGroupsItems, setSplitGroupsItems] = useState([]);
     const [personalItems, setPersonalItems] = useState([]);
-    const [currentPage, setCurrentPage] = useState('setup'); // 'setup', 'grocery', 'splitgroups', 'personal', 'receipt', 'receipts', 'shared', 'auth-callback', 'reset-password', 'settings'
+    const [currentPage, setCurrentPage] = useState('start'); // 'start', 'setup', 'grocery', 'splitgroups', 'personal', 'receipt', 'receipts', 'shared', 'auth-callback', 'reset-password', 'settings', 'ai-upload', 'ai-confirm'
     const [sharedReceiptId, setSharedReceiptId] = useState(null);
 
     // Authentication state
@@ -39,13 +42,14 @@ function App() {
 
     // Track which pages have been visited
     const visitedPages = useMemo(() => {
-        const visited = ['setup'];
+        const visited = ['start'];
+        if (currentPage === 'setup' || names.length > 0) visited.push('setup');
         if (names.length > 0) visited.push('grocery');
         if (splitGroupsItems.length > 0 || everyoneItems.some(item => item.name.trim() !== '')) visited.push('splitgroups');
         if (personalItems.length > 0 || splitGroupsItems.length > 0 || everyoneItems.some(item => item.name.trim() !== '')) visited.push('personal');
         if (personalItems.length > 0) visited.push('receipt');
         return visited;
-    }, [names, splitGroupsItems, everyoneItems, personalItems]);
+    }, [currentPage, names, splitGroupsItems, everyoneItems, personalItems]);
 
 
 
@@ -334,13 +338,52 @@ function App() {
     };
 
     const handleStartNewReceipt = () => {
-        setCurrentPage('setup');
+        setCurrentPage('start');
         setReceiptSaved(false);
         setNames([]);
         setEveryoneItems([{ name: '', price: '' }]);
         setSplitGroupsItems([]);
         setPersonalItems([]);
         setNumPeople('');
+    };
+
+    // AI Flow handlers
+    const handleManualMode = () => {
+        setCurrentPage('setup');
+    };
+
+    const handleAIMode = () => {
+        setCurrentPage('ai-upload');
+    };
+
+    const handleAIReceiptParsed = (parsedItems, total) => {
+        // Convert AI parsed items to the format expected by the app
+        const formattedItems = parsedItems.map(item => ({
+            name: item.name,
+            price: item.price.toString()
+        }));
+
+        setEveryoneItems(formattedItems);
+        setCurrentPage('ai-confirm');
+    };
+
+    const handleAIConfirmItems = (confirmedItems) => {
+        // Convert confirmed items to the format expected by the app
+        const formattedItems = confirmedItems.map(item => ({
+            name: item.name,
+            price: item.price.toString()
+        }));
+
+        setEveryoneItems(formattedItems);
+        setCurrentPage('setup');
+    };
+
+    const handleAITryAgain = () => {
+        setCurrentPage('ai-upload');
+    };
+
+    const handleAISwitchToManual = () => {
+        setCurrentPage('setup');
     };
 
     const handleHeaderNavigation = (page) => {
@@ -388,7 +431,7 @@ function App() {
                     {/* Left: Logo and Brand */}
                     <div
                         className="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => setCurrentPage('setup')}
+                        onClick={() => setCurrentPage('start')}
                     >
                         <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-green-500 rounded-lg flex items-center justify-center">
                             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -490,6 +533,29 @@ function App() {
         <div className="min-h-screen bg-gray-50">
             {currentPage !== 'shared' && renderHeader()}
             <main className="py-8">
+                {currentPage === 'start' && (
+                    <StartScreen
+                        onManualMode={handleManualMode}
+                        onAIMode={handleAIMode}
+                    />
+                )}
+                {currentPage === 'ai-upload' && (
+                    <AIReceiptUpload
+                        onBack={() => setCurrentPage('start')}
+                        onReceiptParsed={handleAIReceiptParsed}
+                        onSwitchToManual={handleAISwitchToManual}
+                    />
+                )}
+                {currentPage === 'ai-confirm' && (
+                    <AIConfirmItems
+                        items={everyoneItems}
+                        total={everyoneItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0)}
+                        onBack={() => setCurrentPage('ai-upload')}
+                        onConfirm={handleAIConfirmItems}
+                        onTryAgain={handleAITryAgain}
+                        onSwitchToManual={handleAISwitchToManual}
+                    />
+                )}
                 {currentPage === 'auth-callback' && (
                     <AuthCallback />
                 )}
@@ -499,7 +565,7 @@ function App() {
                 {currentPage === 'settings' && (
                     <SettingsPage
                         user={user}
-                        onBack={() => setCurrentPage('setup')}
+                        onBack={() => setCurrentPage('start')}
                         onUserUpdate={handleUserUpdate}
                         onLogout={handleLogout}
                     />
@@ -508,7 +574,7 @@ function App() {
                     <SharedReceiptPage receiptId={sharedReceiptId} />
                 )}
                 {currentPage === 'receipts' && (
-                    <ReceiptsPage onBack={() => setCurrentPage('setup')} />
+                    <ReceiptsPage onBack={() => setCurrentPage('start')} />
                 )}
                 {currentPage === 'receipt' && (
                     <ReceiptPage

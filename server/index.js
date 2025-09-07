@@ -4,11 +4,30 @@ const session = require('express-session');
 const passport = require('passport');
 const cors = require('cors');
 const path = require('path');
+const multer = require('multer');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { setupDatabase } = require('./supabase');
 
 const app = express();
 
+// Initialize Google Gemini AI
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// Configure multer for file uploads
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        // Check file type
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed'), false);
+        }
+    }
+});
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -38,9 +57,157 @@ app.get('/health', (req, res) => {
             auth: '/api/auth/*',
             'supabase-auth': '/api/supabase-auth/*',
             receipts: '/api/receipts/*',
+            'parse-receipt': '/api/parse-receipt',
             test: '/api/test'
         }
     });
+});
+
+// AI Receipt Parsing endpoint
+app.post('/api/parse-receipt', upload.single('receipt'), async (req, res) => {
+    try {
+        // Check if file was uploaded
+        if (!req.file) {
+            return res.status(400).json({ error: 'No receipt image provided' });
+        }
+
+        // Validate file
+        if (!req.file.mimetype.startsWith('image/')) {
+            return res.status(400).json({ error: 'Invalid file type. Only images are allowed.' });
+        }
+
+        if (req.file.size > 10 * 1024 * 1024) {
+            return res.status(400).json({ error: 'File size too large. Maximum size is 10MB.' });
+        }
+
+        // Convert image to base64 for Gemini
+        const base64Image = req.file.buffer.toString('base64');
+        const mimeType = req.file.mimetype;
+
+        // Initialize Gemini model
+        const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+
+        // Create prompt for receipt parsing
+        const prompt = `
+        You are an expert at reading and parsing grocery receipts. Please analyze this receipt image and extract the following information:
+
+        For each item found on the receipt:
+        - Item name (clean, readable text)
+        - Price (numerical value only, no currency symbols)
+        - Quantity (if specified, default to 1 if not mentioned)
+
+        Please return the data in this exact JSON format:
+        {
+            "items": [
+                {
+                    "name": "Item Name",
+                    "price": 0.00,
+                    "quantity": 1
+                }
+            ],
+            "total": 0.00
+        }
+
+        Important:
+        - Only include actual grocery items, not taxes, fees, or totals
+        - Ensure prices are accurate numerical values
+        - If quantity is not specified, use 1
+        - Return valid JSON that can be parsed
+        - Do not include any explanatory text, only the JSON response
+        `;
+
+        // Generate content with image
+        const result = await model.generateContent([
+            prompt,
+            {
+                inlineData: {
+                    mimeType: mimeType,
+                    data: base64Image
+                }
+            }
+        ]);
+
+        const response = await result.response;
+        const text = response.text();
+
+        // Extract JSON from response
+        let jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            throw new Error('Failed to extract JSON from AI response');
+        }
+
+        let parsedData;
+        try {
+            parsedData = JSON.parse(jsonMatch[0]);
+        } catch (parseError) {
+            throw new Error('Failed to parse AI response as JSON');
+        }
+
+        // Validate parsed data structure
+        if (!parsedData.items || !Array.isArray(parsedData.items)) {
+            throw new Error('Invalid data structure from AI response');
+        }
+
+        // Clean and validate items
+        const cleanedItems = parsedData.items
+            .filter(item => item.name && item.price && item.name.trim() !== '')
+            .map(item => ({
+                name: item.name.trim(),
+                price: parseFloat(item.price) || 0,
+                quantity: parseInt(item.quantity) || 1
+            }))
+            .filter(item => item.price > 0);
+
+        if (cleanedItems.length === 0) {
+            throw new Error('No valid items found in the receipt');
+        }
+
+        // Calculate total
+        const total = cleanedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+        res.json({
+            success: true,
+            items: cleanedItems,
+            total: total,
+            message: `Successfully parsed ${cleanedItems.length} items`
+        });
+
+    } catch (error) {
+        console.error('Receipt parsing error:', error);
+
+        // Handle specific error types
+        if (error.message.includes('API key')) {
+            return res.status(500).json({
+                error: 'AI service configuration error. Please contact support.'
+            });
+        }
+
+        if (error.message.includes('quota')) {
+            return res.status(429).json({
+                error: 'AI service quota exceeded. Please try again later.'
+            });
+        }
+
+        res.status(500).json({
+            error: error.message || 'Failed to parse receipt. Please try again.'
+        });
+    }
+});
+
+// Error handling middleware for multer
+app.use((error, req, res, next) => {
+    if (error instanceof multer.MulterError) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({ error: 'File too large. Maximum size is 10MB.' });
+        }
+        return res.status(400).json({ error: 'File upload error: ' + error.message });
+    }
+
+    if (error.message === 'Only image files are allowed') {
+        return res.status(400).json({ error: 'Only image files are allowed.' });
+    }
+
+    next(error);
 });
 
 // Test route
@@ -144,15 +311,26 @@ app.use('/api/*', (req, res) => {
 const PORT = process.env.PORT || 5001;
 
 // Initialize database and start server
+// Temporarily skip database setup for OCR testing
+console.log('Starting server for OCR testing...');
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`🔍 OCR endpoint: http://localhost:${PORT}/api/parse-receipt`);
+    console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+});
+
+// TODO: Re-enable database setup once Supabase keys are configured
+/*
 setupDatabase()
     .then(() => {
         app.listen(PORT, '0.0.0.0', () => {
-            // Server started successfully
+            console.log(`Server running on port ${PORT}`);
         });
     })
     .catch((error) => {
         console.error('Failed to setup database:', error);
         process.exit(1);
     });
+*/
 
 module.exports = app; 
